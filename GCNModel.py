@@ -23,4 +23,4 @@ class GCN(nn.Module):
         out = out.relu()
         out = F.dropout(out, self.dropout, training=self.training)
         out = self.gc2(out, adj)
-        return F.log_softmax(out, dim=0)
+        return F.log_softmax(out, dim=out.shape[-1])
