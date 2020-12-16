@@ -34,6 +34,6 @@ def convert(M):
     return Ms
 
 def accuracy(output, labels):
-    preds = output.max(2)[1].type_as(labels)
+    preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
     return (correct.sum(), len(correct.view(-1)))

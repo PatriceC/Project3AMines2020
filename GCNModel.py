@@ -28,7 +28,7 @@ class GCN(nn.Module):
         out = out.relu()
         out = torch.nn.functional.dropout(out, self.dropout, training=self.training)
         out = self.gcl2(out, adj)
-        return torch.nn.functional.log_softmax(out, dim=out.shape[-1])
+        return torch.nn.functional.log_softmax(out, dim=2).transpose(1,2)
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""

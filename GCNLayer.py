@@ -31,12 +31,12 @@ class GraphConvolutionnalLayer(nn.Module):
             self.bias.data.uniform_(-stdv, stdv)
         
     def forward(self, input, adj_matrix):
-        x, y = input.shape
+        y = input.shape[-1]
         if y != self.in_features:
             print(f'Wrong Input Features. Please use tensor with {self.in_features} Input Features')
             return 0
         output = torch.matmul(input, self.weight)
-        output = torch.bmm(adj_matrix, output)
+        output = torch.bmm(adj_matrix.float(), output)
         if self.bias is not None:
             output += self.bias
         ret = output

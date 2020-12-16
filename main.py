@@ -18,20 +18,18 @@ import utils
 # %% Data
 
 train, test = utils.load_data(batch_size=2)
-exemple = next(iter(train))
-nsouches = 15
-classes = 3
+
 
 # %% Model
 
-model = GCN(nsouches, 32, classes)
+model = GCN(1, 32, 3)
 print(model)
 criterion = nn.NLLLoss()
 learning_rate = 0.001
 weight_decay = 0.0001
-num_epochs = 10
+num_epochs = 1000
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.50)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.90)
 
 dateTimeObj = datetime.now()
 print('Début Entrainement : ', dateTimeObj.hour, 'H', dateTimeObj.minute)
@@ -58,11 +56,12 @@ for epoch in range(1, num_epochs + 1):
 
     for batch, ((souche, adj_mat), label) in enumerate(train):
 
-        label = label - 1
+        label = (label - 1).long()
         # Initializing a gradient as 0 so there is no mixing of gradient among the batches
         optimizer.zero_grad()
         # Forward pass
-        output = model.forward(souche, adj_mat)
+        x = torch.ones(souche.shape).unsqueeze(2)
+        output = model.forward(x, adj_mat)
         loss = criterion(output, label)
         # Propagating the error backward
         loss.backward()
@@ -82,8 +81,9 @@ for epoch in range(1, num_epochs + 1):
             acc, cor, lcor = 0, 0, 0
             with torch.no_grad():
                 for ((souche_t, adj_mat_t), label_t) in test:
-                    label_t = label_t - 1
-                    output_t = model.forward(souche_t, adj_mat_t)
+                    label_t = (label_t - 1).long()
+                    x_t = torch.ones(souche_t.shape).unsqueeze(2)
+                    output_t = model.forward(x_t, adj_mat_t)
                     loss_t = criterion(output_t, label_t)
                     test_loss_batch.append(loss_t.item())
                     acc = utils.accuracy(output_t, label_t)
@@ -99,7 +99,7 @@ for epoch in range(1, num_epochs + 1):
             pourcentage += 0.1
             start_time = time.time()
 
-    print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
+    # print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
     train_loss_list.append(np.mean(train_loss_batch)) 
     scheduler.step()
 
