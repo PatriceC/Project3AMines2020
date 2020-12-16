@@ -8,16 +8,19 @@ Created on Tue Dec 15 00:47:01 2020
 import numpy as np
 import random
 import torch
+import scipy as sp
 
-
-def load_data(souches_file='data/souches.pt', adj_mats_file='data/adj_mats.pt', pops_file='data/pops.pt', tr=0.8, batch_size=16):
-    souches = torch.load(souches_file)
+def load_data(x_file=None, adj_mats_file='data/adj_mats.pt', targets_file='data/labels.pt', tr=0.8, batch_size=16):
     adj_mats = torch.load(adj_mats_file)
-    pops = torch.load(pops_file)
-    data = list(zip(list(zip(souches, adj_mats)), pops))
+    if x_file is not None:
+        x = torch.load(x_file)
+    else:
+        x = torch.ones((len(adj_mats), len(adj_mats[0]))).unsqueeze(2)
+    targets = torch.load(targets_file)
+    data = list(zip(list(zip(x, adj_mats)), targets))
     random.shuffle(data)
-    train = torch.utils.data.DataLoader(data[:int(len(data)*tr)], batch_size=batch_size)
-    test = torch.utils.data.DataLoader(data[int(len(data)*tr):], batch_size=batch_size)
+    train = torch.utils.data.DataLoader(data[:int(len(data)*tr)], batch_size=batch_size, shuffle=True)
+    test = torch.utils.data.DataLoader(data[int(len(data)*tr):], batch_size=batch_size, shuffle=True)
     return train, test
 
 
@@ -37,3 +40,24 @@ def accuracy(output, labels):
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
     return (correct.sum(), len(correct.view(-1)))
+
+
+def adj_normalize(adj):
+    if adj.dim() == 2:
+        adj_c = adj + torch.eye(adj.size(0), adj.size(1))
+    else:
+        i_adj = torch.eye(adj.size(-2), adj.size(-1))
+        i_adj = i_adj.reshape([1 for i in range(adj.dim() - 2)] + [adj.size(-2), adj.size(-1)])
+        i_adj = i_adj.repeat([adj.size(i) for i in range(adj.dim() - 2)] + [1, 1])
+        adj_c = adj + i_adj.to_sparse()
+    adj_c = adj_c.to_dense()
+    D = torch.diag_embed(1/torch.sqrt(adj_c.sum(adj_c.dim()-1)))
+    return torch.bmm(torch.bmm(D, adj_c), D).to_sparse()
+
+    """Row-normalize sparse matrix"""
+    rowsum = np.array(mx.sum(dim))
+    r_inv = (1/rowsum).flatten()
+    r_inv[np.isinf(r_inv)] = 0.
+    r_mat_inv = sp.diags(r_inv)
+    mx = r_mat_inv.dot(mx)
+    return mx

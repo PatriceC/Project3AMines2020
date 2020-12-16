@@ -12,24 +12,37 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from GCNModel import GCN
+from GCNModel import GCN_Class, GCN_Reg
 import utils
 
 # %% Data
+classification = True
 
-train, test = utils.load_data(batch_size=2)
+if classification:
+    train, test = utils.load_data(targets_file='data/labels.pt')
+    out_features = 3
+else:
+    train, test = utils.load_data(x_file='data/init_pops.pt', targets_file='data/last_pops.pt')
+    out_features = 1
 
+exemple = next(iter(train))
+in_features = exemple[0][0].shape[-1]
 
 # %% Model
 
-model = GCN(1, 32, 3)
+if classification:
+    model = GCN_Class(in_features, 64, out_features)
+    criterion = nn.NLLLoss()
+else:
+    model = GCN_Reg(in_features, 64, out_features)
+    criterion = nn.MSELoss()
+
 print(model)
-criterion = nn.NLLLoss()
 learning_rate = 0.001
 weight_decay = 0.0001
 num_epochs = 1000
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1.0, gamma=0.90)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50.0, gamma=0.70)
 
 dateTimeObj = datetime.now()
 print('Début Entrainement : ', dateTimeObj.hour, 'H', dateTimeObj.minute)
@@ -54,13 +67,13 @@ for epoch in range(1, num_epochs + 1):
     # Temps pour réaliser 10%
     start_time = time.time()
 
-    for batch, ((souche, adj_mat), label) in enumerate(train):
+    for batch, ((x, adj_mat), label) in enumerate(train):
 
         label = (label - 1).long()
+        adj_mat = utils.adj_normalize(adj_mat)
         # Initializing a gradient as 0 so there is no mixing of gradient among the batches
         optimizer.zero_grad()
         # Forward pass
-        x = torch.ones(souche.shape).unsqueeze(2)
         output = model.forward(x, adj_mat)
         loss = criterion(output, label)
         # Propagating the error backward
@@ -80,9 +93,9 @@ for epoch in range(1, num_epochs + 1):
             model.eval()
             acc, cor, lcor = 0, 0, 0
             with torch.no_grad():
-                for ((souche_t, adj_mat_t), label_t) in test:
+                for ((x_t, adj_mat_t), label_t) in test:
                     label_t = (label_t - 1).long()
-                    x_t = torch.ones(souche_t.shape).unsqueeze(2)
+                    adj_mat_t = utils.adj_normalize(adj_mat_t)
                     output_t = model.forward(x_t, adj_mat_t)
                     loss_t = criterion(output_t, label_t)
                     test_loss_batch.append(loss_t.item())
@@ -99,7 +112,7 @@ for epoch in range(1, num_epochs + 1):
             pourcentage += 0.1
             start_time = time.time()
 
-    # print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
+    print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
     train_loss_list.append(np.mean(train_loss_batch)) 
     scheduler.step()
 
