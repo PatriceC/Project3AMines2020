@@ -1,5 +1,6 @@
 *.zip
 *.csv
 *.txt
+*.pt
 .vscode
 __pycache__
