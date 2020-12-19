@@ -19,7 +19,7 @@ import utils
 classification = True
 
 if classification:
-    train, test = utils.load_data(targets_file='data/labels.pt')
+    train, test = utils.load_data(adj_mats_file='data/adj_mats_old.pt', targets_file='data/labels_old.pt')
     out_features = 3
 else:
     train, test = utils.load_data(x_file='data/init_pops.pt', targets_file='data/last_pops.pt')
@@ -69,7 +69,7 @@ for epoch in range(1, num_epochs + 1):
 
     for batch, ((x, adj_mat), label) in enumerate(train):
 
-        label = (label - 1).long()
+        label = label.long()
         adj_mat = utils.adj_normalize(adj_mat)
         # Initializing a gradient as 0 so there is no mixing of gradient among the batches
         optimizer.zero_grad()
@@ -94,7 +94,7 @@ for epoch in range(1, num_epochs + 1):
             acc, cor, lcor = 0, 0, 0
             with torch.no_grad():
                 for ((x_t, adj_mat_t), label_t) in test:
-                    label_t = (label_t - 1).long()
+                    label_t = label_t.long()
                     adj_mat_t = utils.adj_normalize(adj_mat_t)
                     output_t = model.forward(x_t, adj_mat_t)
                     loss_t = criterion(output_t, label_t)
@@ -109,7 +109,7 @@ for epoch in range(1, num_epochs + 1):
             print("Pourcentage: {}%, Test Loss : {}, Accuracy: {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, cor/lcor, epoch, round(T)))
             print('-'*10)
 
-            pourcentage += 0.1
+            pourcentage += 1
             start_time = time.time()
 
     print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
