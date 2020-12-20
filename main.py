@@ -40,9 +40,9 @@ else:
 print(model)
 learning_rate = 0.001
 weight_decay = 0.0001
-num_epochs = 1000
+num_epochs = 20
 optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 50.0, gamma=0.70)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10.0, gamma=0.50)
 
 dateTimeObj = datetime.now()
 print('Début Entrainement : ', dateTimeObj.hour, 'H', dateTimeObj.minute)
@@ -109,7 +109,7 @@ for epoch in range(1, num_epochs + 1):
             print("Pourcentage: {}%, Test Loss : {}, Accuracy: {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, cor/lcor, epoch, round(T)))
             print('-'*10)
 
-            pourcentage += 1
+            pourcentage += 0.2
             start_time = time.time()
 
     print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))

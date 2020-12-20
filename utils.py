@@ -9,13 +9,15 @@ import numpy as np
 import random
 import torch
 
-def load_data(x_file=None, adj_mats_file='data/adj_mats.pt', targets_file='data/labels.pt', tr=0.8, batch_size=32):
+def load_data(x_file=None, adj_mats_file='data/adj_mats.pt', targets_file='data/labels.pt', tr=0.8, batch_size=128):
     adj_mats = torch.load(adj_mats_file)
     if x_file is not None:
         x = torch.load(x_file)
     else:
-        x = torch.ones((len(adj_mats), len(adj_mats[0]))).unsqueeze(2)
+        x = torch.ones((adj_mats.size(0), adj_mats.size(1)))
     targets = torch.load(targets_file)
+    x, adj_mats, targets = permutations([x, adj_mats, targets], r=7, batch=True)
+    x = x.unsqueeze(2)
     data = list(zip(list(zip(x, adj_mats)), targets))
     random.shuffle(data)
     train = torch.utils.data.DataLoader(data[:int(len(data)*tr)], batch_size=batch_size, shuffle=True)
@@ -54,19 +56,22 @@ def adj_normalize(adj):
     return torch.bmm(torch.bmm(D, adj_c), D).to_sparse()
 
 
-def permutations(list_tenseurs, batch=False):
+def permutations(list_tenseurs, r=np.inf, batch=False):
     """
     Génère une même permutation de tenseur dans une liste de tenseurs.
     
     Chaque tenseur de la liste se verra permutter de façon identique.
-    r < len(Tenseur)! est le nombre de permuttation différente générer
+    r est le nombre de permuttation différente générer (attention, avec batch,
+    on explose la puissance de calcul)
     Si batch est Vrai alors il peut y avoir des doublons
     """
     n = list_tenseurs[0].shape[-1]
     l = len(list_tenseurs)
     perm_list = list([] for k in range(l))
     already_perm = list((i,i) for i in range(n))
-    for _ in range(n-1):
+    if r >= n:
+        r = n-1
+    for _ in range(r):
         (i,j) = (0, 0)
         while (i,j) in already_perm:
             (i,j) = (np.random.randint(n), np.random.randint(n))
@@ -82,25 +87,31 @@ def permutations(list_tenseurs, batch=False):
                 a, b = new_tenseur[j].clone(), new_tenseur[i].clone()
                 new_tenseur[i], new_tenseur[j] = a, b
             elif dim == 2:
-                a_col, b_col = new_tenseur[:, i].clone(), new_tenseur[:, j].clone()
-                new_tenseur[:, j], new_tenseur[:, i] = a_col, b_col
-                a_line, b_line = new_tenseur[i, :].clone(), new_tenseur[j, :].clone()
-                new_tenseur[j, :], new_tenseur[i, :] = a_line, b_line
+                if batch:
+                    a, b = new_tenseur[:, j].clone(), new_tenseur[:, i].clone()
+                    new_tenseur[:, i], new_tenseur[:, j] = a, b
+                else:
+                    a_col, b_col = new_tenseur[:, i].clone(), new_tenseur[:, j].clone()
+                    new_tenseur[:, j], new_tenseur[:, i] = a_col, b_col
+                    a_line, b_line = new_tenseur[i, :].clone(), new_tenseur[j, :].clone()
+                    new_tenseur[j, :], new_tenseur[i, :] = a_line, b_line
             elif dim == 3:
                 a_col, b_col = new_tenseur[:, :, i].clone(), new_tenseur[:, :, j].clone()
                 new_tenseur[:, :, j], new_tenseur[:, :, i] = a_col, b_col
                 a_line, b_line = new_tenseur[:, i, :].clone(), new_tenseur[:, j, :].clone()
                 new_tenseur[:, j, :], new_tenseur[:, i, :] = a_line, b_line
-                if batch:
-                    new_tenseur = torch.cat((new_tenseur, list_tenseurs[tenseur]), dim=0)
-                    if sparse_t:
-                        new_tenseur = new_tenseur.to_sparse()
-                    list_tenseurs[tenseur] = new_tenseur
-                    perm_list[tenseur] = list_tenseurs[tenseur]
             else:
                 break
-            if sparse_t:
-                new_tenseur = new_tenseur.to_sparse()
-            if not(batch):
+            if batch:
+                if sparse_t:
+                    new_tenseur = torch.cat((new_tenseur, list_tenseurs[tenseur].to_dense()), dim=0)
+                    new_tenseur = new_tenseur.to_sparse()
+                else:
+                    new_tenseur = torch.cat((new_tenseur, list_tenseurs[tenseur]), dim=0)
+                list_tenseurs[tenseur] = new_tenseur
+                perm_list[tenseur] = list_tenseurs[tenseur]
+            else:
+                if sparse_t:
+                    new_tenseur = new_tenseur.to_sparse()
                 perm_list[tenseur].append(new_tenseur)
     return perm_list
