@@ -19,10 +19,10 @@ import utils
 classification = True
 
 if classification:
-    train, test = utils.load_data(adj_mats_file='data/adj_mats_old.pt', targets_file='data/labels_old.pt')
+    train, test = utils.load_data(targets_file='data/labels.pt', batch_size=64)
     out_features = 3
 else:
-    train, test = utils.load_data(x_file='data/init_pops.pt', targets_file='data/last_pops.pt')
+    train, test = utils.load_data(x_file='data/init_pops.pt', targets_file='data/last_pops.pt', batch_size=64)
     out_features = 1
 
 exemple = next(iter(train))
@@ -48,6 +48,7 @@ dateTimeObj = datetime.now()
 print('Début Entrainement : ', dateTimeObj.hour, 'H', dateTimeObj.minute)
 test_loss_list = []
 train_loss_list = []
+accuracy_list = []
 n_batches = len(train)
 # On va entrainer le modèle num_epochs fois
 for epoch in range(1, num_epochs + 1):
@@ -67,15 +68,14 @@ for epoch in range(1, num_epochs + 1):
     # Temps pour réaliser 10%
     start_time = time.time()
 
-    for batch, ((x, adj_mat), label) in enumerate(train):
+    for batch, ((x, adj_mat), target) in enumerate(train):
 
-        label = label.long()
-        adj_mat = utils.adj_normalize(adj_mat)
+        adj_mat = utils.adj_normalize(adj_mat.to_sparse())
         # Initializing a gradient as 0 so there is no mixing of gradient among the batches
         optimizer.zero_grad()
         # Forward pass
         output = model.forward(x, adj_mat)
-        loss = criterion(output, label)
+        loss = criterion(output, target)
         # Propagating the error backward
         loss.backward()
 
@@ -91,22 +91,27 @@ for epoch in range(1, num_epochs + 1):
             T = time.time() - start_time
             # Evaluation du modèel
             model.eval()
-            acc, cor, lcor = 0, 0, 0
+            if classification:
+                acc, cor, lcor = 0, 0, 0
             with torch.no_grad():
-                for ((x_t, adj_mat_t), label_t) in test:
-                    label_t = label_t.long()
-                    adj_mat_t = utils.adj_normalize(adj_mat_t)
+                for ((x_t, adj_mat_t), target_t) in test:
+                    adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
                     output_t = model.forward(x_t, adj_mat_t)
-                    loss_t = criterion(output_t, label_t)
+                    loss_t = criterion(output_t, target_t)
                     test_loss_batch.append(loss_t.item())
-                    acc = utils.accuracy(output_t, label_t)
-                    cor += acc[0]
-                    lcor += acc[1]
+                    if classification:
+                        acc = utils.accuracy(output_t, target_t)
+                        cor += acc[0]
+                        lcor += acc[1]
             test_loss = np.mean(test_loss_batch)
             test_loss_list.append(test_loss)
-
+            if classification:
+                accuracy_list.append(cor/lcor)
             print('-'*10)
-            print("Pourcentage: {}%, Test Loss : {}, Accuracy: {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, cor/lcor, epoch, round(T)))
+            if classification:
+                print("Pourcentage: {}%, Test Loss : {}, Accuracy: {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, cor/lcor, epoch, round(T)))
+            else:
+                print("Pourcentage: {}%, Test Loss : {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, epoch, round(T)))
             print('-'*10)
 
             pourcentage += 0.2
@@ -127,3 +132,9 @@ plt.figure(1)
 plt.plot(train_loss_list)
 plt.title(model.name_model +': Train Loss')
 plt.show()
+
+if classification:
+    plt.figure(2)
+    plt.plot(accuracy_list)
+    plt.title(model.name_model +': Accuracy')
+    plt.show()

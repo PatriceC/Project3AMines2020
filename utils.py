@@ -9,16 +9,17 @@ import numpy as np
 import random
 import torch
 
-def load_data(x_file=None, adj_mats_file='data/adj_mats.pt', targets_file='data/labels.pt', tr=0.8, batch_size=128):
+def load_data(x_file=None, adj_mats_file='data/adj_mats.pt', targets_file='data/labels.pt', tr=0.8, batch_size=128, perm=False):
     adj_mats = torch.load(adj_mats_file)
     if x_file is not None:
         x = torch.load(x_file)
     else:
         x = torch.ones((adj_mats.size(0), adj_mats.size(1)))
     targets = torch.load(targets_file)
-    x, adj_mats, targets = permutations([x, adj_mats, targets], r=7, batch=True)
+    if perm:
+        x, adj_mats, targets = permutations([x, adj_mats, targets], r=8, batch=True)
     x = x.unsqueeze(2)
-    data = list(zip(list(zip(x, adj_mats)), targets))
+    data = list(zip(zip(x, adj_mats.to_dense()), targets))
     random.shuffle(data)
     train = torch.utils.data.DataLoader(data[:int(len(data)*tr)], batch_size=batch_size, shuffle=True)
     test = torch.utils.data.DataLoader(data[int(len(data)*tr):], batch_size=batch_size, shuffle=True)

@@ -32,16 +32,16 @@ class GCN_Class(nn.Module):
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""
-        torch.save(self.state_dict(), './models/model_' + self.name_model + '_' + str(self.in_features) + '_in_' + str(self.classes) + 'out.pt')
+        torch.save(self.state_dict(), './models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.classes) + 'out.gcn')
 
     def load(self):
         """Récupère un modèle déjà entrainé pour inférer."""
-        self.load_state_dict(torch.load('./models/model_' + self.name_model + '_' + str(self.in_features) + '_in_' + str(self.classes) + 'out.pt'))
+        self.load_state_dict(torch.load('./models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.classes) + 'out.gcn'))
 
 
 class GCN_Reg(nn.Module):
     def __init__(self, in_features, hidden_dim, out_features, dropout=0.1):
-        super(GCN_Class, self).__init__()
+        super(GCN_Reg, self).__init__()
 
         self.in_features = in_features
         self.hidden_dim = hidden_dim
@@ -57,12 +57,12 @@ class GCN_Reg(nn.Module):
         out = out.relu()
         out = torch.nn.functional.dropout(out, self.dropout, training=self.training)
         out = self.gcl2(out, adj)
-        return out.relu()
+        return out.relu().squeeze(2)
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""
-        torch.save(self.state_dict(), './models/model_' + self.name_model + '_' + str(self.in_features) + '_in_' + str(self.classes) + 'out.pt')
+        torch.save(self.state_dict(), './models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.classes) + 'out.gcn')
 
     def load(self):
         """Récupère un modèle déjà entrainé pour inférer."""
-        self.load_state_dict(torch.load('./models/model_' + self.name_model + '_' + str(self.in_features) + '_in_' + str(self.classes) + 'out.pt'))
+        self.load_state_dict(torch.load('./models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.classes) + 'out.gcn'))
