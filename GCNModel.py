@@ -57,7 +57,7 @@ class GCN_Reg(nn.Module):
         out = out.relu()
         out = torch.nn.functional.dropout(out, self.dropout, training=self.training)
         out = self.gcl2(out, adj)
-        return out.relu().squeeze(2)
+        return out.relu()
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""
