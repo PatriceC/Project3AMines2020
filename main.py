@@ -30,11 +30,12 @@ in_features = exemple[0][0].shape[-1]
 
 # %% Model
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 if classification:
-    model = GCN_Class(in_features, 64, out_features)
+    model = GCN_Class(in_features, 64, out_features).to(device)
     criterion = nn.NLLLoss()
 else:
-    model = GCN_Reg(in_features, 64, out_features)
+    model = GCN_Reg(in_features, 64, out_features).to(device)
     criterion = nn.MSELoss()
 
 print(model)
@@ -74,8 +75,8 @@ for epoch in range(1, num_epochs + 1):
         # Initializing a gradient as 0 so there is no mixing of gradient among the batches
         optimizer.zero_grad()
         # Forward pass
-        output = model.forward(x, adj_mat)
-        loss = criterion(output, target)
+        output = model.forward(x.to(device), adj_mat.to(device))
+        loss = criterion(output, target.to(device))
         # Propagating the error backward
         loss.backward()
 
@@ -96,11 +97,11 @@ for epoch in range(1, num_epochs + 1):
             with torch.no_grad():
                 for ((x_t, adj_mat_t), target_t) in test:
                     adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
-                    output_t = model.forward(x_t, adj_mat_t)
-                    loss_t = criterion(output_t, target_t)
+                    output_t = model.forward(x_t.to(device), adj_mat_t.to(device))
+                    loss_t = criterion(output_t, target_t.to(device))
                     test_loss_batch.append(loss_t.item())
                     if classification:
-                        acc = utils.accuracy(output_t, target_t)
+                        acc = utils.accuracy(output_t, target_t.to(device))
                         cor += acc[0]
                         lcor += acc[1]
             test_loss = np.mean(test_loss_batch)

@@ -61,8 +61,8 @@ class GCN_Reg(nn.Module):
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""
-        torch.save(self.state_dict(), './models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.classes) + 'out.gcn')
+        torch.save(self.state_dict(), './models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.out_features) + 'out.gcn')
 
     def load(self):
         """Récupère un modèle déjà entrainé pour inférer."""
-        self.load_state_dict(torch.load('./models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.classes) + 'out.gcn'))
+        self.load_state_dict(torch.load('./models/model_' + self.name_model + '_' + str(self.in_features) + 'in_' + str(self.out_features) + 'out.gcn'))
