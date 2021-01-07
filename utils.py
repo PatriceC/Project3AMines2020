@@ -39,8 +39,10 @@ def convert(M):
     return Ms
 
 def accuracy(output, labels):
+    device = output.device
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
+    correct = (correct.sum(dim=1) == correct.size(1) * torch.ones(correct.size(0)).to(device)).double()
     return (correct.sum(), len(correct.view(-1)))
 
 

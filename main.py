@@ -51,91 +51,120 @@ test_loss_list = []
 train_loss_list = []
 accuracy_list = []
 n_batches = len(train)
-# On va entrainer le modèle num_epochs fois
-for epoch in range(1, num_epochs + 1):
 
-    # Temps epoch
-    epoch_start_time = time.time()
-    dateTimeObj = datetime.now()
-    print('Début epoch', epoch, ':', dateTimeObj.hour, 'H', dateTimeObj.minute)
-    # Modèle en mode entrainement
-    model.train()
-    # Pourcentage du Dataset réaliser
-    pourcentage = 0.
-    # Loss du batch en cours
-    test_loss_batch = []
-    train_loss_batch = []
+trainning = True
 
-    # Temps pour réaliser 10%
-    start_time = time.time()
+# %% Trainning
 
-    for batch, ((x, adj_mat), target) in enumerate(train):
+if trainning:
+    
+    # On va entrainer le modèle num_epochs fois
+    for epoch in range(1, num_epochs + 1):
+    
+        # Temps epoch
+        epoch_start_time = time.time()
+        dateTimeObj = datetime.now()
+        print('Début epoch', epoch, ':', dateTimeObj.hour, 'H', dateTimeObj.minute)
+        # Modèle en mode entrainement
+        model.train()
+        # Pourcentage du Dataset réaliser
+        pourcentage = 0.
+        # Loss du batch en cours
+        test_loss_batch = []
+        train_loss_batch = []
+    
+        # Temps pour réaliser 10%
+        start_time = time.time()
+    
+        for batch, ((x, adj_mat), target) in enumerate(train):
+    
+            adj_mat = utils.adj_normalize(adj_mat.to_sparse())
+            # Initializing a gradient as 0 so there is no mixing of gradient among the batches
+            optimizer.zero_grad()
+            # Forward pass
+            output = model.forward(x.to(device), adj_mat.to(device))
+            loss = criterion(output, target.to(device))
+            # Propagating the error backward
+            loss.backward()
+    
+            # Optimizing the parameters
+            optimizer.step()
+            train_loss_batch.append(loss.item())
+    
+            # Pourcentage réel réaliser
+            count_pourcentage = batch / n_batches
+            # Si on a réalisé 10% nouveau du Dataset, on test
+            if count_pourcentage >= pourcentage:
+                # Temps des 10%
+                T = time.time() - start_time
+                # Evaluation du modèel
+                model.eval()
+                if classification:
+                    acc, cor, lcor = 0, 0, 0
+                with torch.no_grad():
+                    for ((x_t, adj_mat_t), target_t) in test:
+                        adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
+                        output_t = model.forward(x_t.to(device), adj_mat_t.to(device))
+                        loss_t = criterion(output_t, target_t.to(device))
+                        test_loss_batch.append(loss_t.item())
+                        if classification:
+                            acc = utils.accuracy(output_t, target_t.to(device))
+                            cor += acc[0]
+                            lcor += acc[1]
+                test_loss = np.mean(test_loss_batch)
+                test_loss_list.append(test_loss)
+                if classification:
+                    accuracy_list.append(cor/lcor)
+                print('-'*10)
+                if classification:
+                    print("Pourcentage: {}%, Test Loss : {}, Accuracy: {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, cor/lcor, epoch, round(T)))
+                else:
+                    print("Pourcentage: {}%, Test Loss : {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, epoch, round(T)))
+                print('-'*10)
+    
+                pourcentage += 0.2
+                start_time = time.time()
+    
+        print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
+        train_loss_list.append(np.mean(train_loss_batch)) 
+        scheduler.step()
+    
+    model.save()
 
-        adj_mat = utils.adj_normalize(adj_mat.to_sparse())
-        # Initializing a gradient as 0 so there is no mixing of gradient among the batches
-        optimizer.zero_grad()
-        # Forward pass
-        output = model.forward(x.to(device), adj_mat.to(device))
-        loss = criterion(output, target.to(device))
-        # Propagating the error backward
-        loss.backward()
-
-        # Optimizing the parameters
-        optimizer.step()
-        train_loss_batch.append(loss.item())
-
-        # Pourcentage réel réaliser
-        count_pourcentage = batch / n_batches
-        # Si on a réalisé 10% nouveau du Dataset, on test
-        if count_pourcentage >= pourcentage:
-            # Temps des 10%
-            T = time.time() - start_time
-            # Evaluation du modèel
-            model.eval()
+else:
+    model.load()
+    with torch.no_grad():
+        for ((x_t, adj_mat_t), target_t) in test:
+            adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
+            output_t = model.forward(x_t.to(device), adj_mat_t.to(device))
+            loss_t = criterion(output_t, target_t.to(device))
+            test_loss_batch.append(loss_t.item())
             if classification:
-                acc, cor, lcor = 0, 0, 0
-            with torch.no_grad():
-                for ((x_t, adj_mat_t), target_t) in test:
-                    adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
-                    output_t = model.forward(x_t.to(device), adj_mat_t.to(device))
-                    loss_t = criterion(output_t, target_t.to(device))
-                    test_loss_batch.append(loss_t.item())
-                    if classification:
-                        acc = utils.accuracy(output_t, target_t.to(device))
-                        cor += acc[0]
-                        lcor += acc[1]
+                acc = utils.accuracy(output_t, target_t.to(device))
+                cor += acc[0]
+                lcor += acc[1]
             test_loss = np.mean(test_loss_batch)
             test_loss_list.append(test_loss)
             if classification:
                 accuracy_list.append(cor/lcor)
-            print('-'*10)
-            if classification:
-                print("Pourcentage: {}%, Test Loss : {}, Accuracy: {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, cor/lcor, epoch, round(T)))
-            else:
-                print("Pourcentage: {}%, Test Loss : {}, Epoch: {}, Temps : {}s".format(round(100*pourcentage), test_loss, epoch, round(T)))
-            print('-'*10)
 
-            pourcentage += 0.2
-            start_time = time.time()
-
-    print('Fin epoch : {}, Temps de l\'epoch : {}s'.format(epoch, round(time.time() - epoch_start_time)))
-    train_loss_list.append(np.mean(train_loss_batch)) 
-    scheduler.step()
-
-model.save()
+# %% Plot
 
 plt.figure(0)
 plt.plot(test_loss_list)
 plt.title(model.name_model +': Test Loss')
 plt.show()
 
-plt.figure(1)
-plt.plot(train_loss_list)
-plt.title(model.name_model +': Train Loss')
-plt.show()
+if trainning:
+    plt.figure(1)
+    plt.plot(train_loss_list)
+    plt.title(model.name_model +': Train Loss')
+    plt.show()
 
 if classification:
     plt.figure(2)
     plt.plot(accuracy_list)
     plt.title(model.name_model +': Accuracy')
+    plt.ylim((0,1))
     plt.show()
+
