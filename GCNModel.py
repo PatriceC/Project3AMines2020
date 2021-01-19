@@ -11,6 +11,8 @@ from GCNLayer import GraphConvolutionnalLayer
 
 
 class GCN_Class(nn.Module):
+    """Graph Convolutionnal Classification Model."""
+
     def __init__(self, in_features, hidden_dim, classes, dropout=0.1):
         super(GCN_Class, self).__init__()
 
@@ -24,11 +26,13 @@ class GCN_Class(nn.Module):
         self.dropout = dropout
 
     def forward(self, x, adj):
+        """Forward."""
         out = self.gcl1(x, adj)
         out = out.relu()
-        out = torch.nn.functional.dropout(out, self.dropout, training=self.training)
+        out = torch.nn.functional.dropout(
+            out, self.dropout, training=self.training)
         out = self.gcl2(out, adj)
-        return torch.nn.functional.log_softmax(out, dim=2).transpose(1,2)
+        return torch.nn.functional.log_softmax(out, dim=2).transpose(1, 2)
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""
@@ -40,6 +44,8 @@ class GCN_Class(nn.Module):
 
 
 class GCN_Reg(nn.Module):
+    """Graph Convolutionnal Classification Model."""
+
     def __init__(self, in_features, hidden_dim, out_features, dropout=0.1):
         super(GCN_Reg, self).__init__()
 
@@ -53,9 +59,11 @@ class GCN_Reg(nn.Module):
         self.dropout = dropout
 
     def forward(self, x, adj):
+        """Forward."""
         out = self.gcl1(x, adj)
         out = out.relu()
-        out = torch.nn.functional.dropout(out, self.dropout, training=self.training)
+        out = torch.nn.functional.dropout(
+            out, self.dropout, training=self.training)
         out = self.gcl2(out, adj)
         return out.relu()
 
