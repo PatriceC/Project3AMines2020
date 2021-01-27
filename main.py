@@ -138,7 +138,7 @@ def trainning(model: GCN_Class or GCN_Reg,
     """
     learning_rate = 0.01
     weight_decay = 0.0001
-    num_epochs = 100
+    num_epochs = 10
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     optimizer = torch.optim.AdamW(model.parameters(),

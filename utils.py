@@ -52,12 +52,11 @@ def load_data(x_file: str = None,
     else:
         x = torch.ones((adj_mats.size(0), adj_mats.size(1)))
     targets = torch.load(targets_file)
-    if perm:
-        x, adj_mats, targets = permutations([x, adj_mats, targets],
-                                            r=10, batch=True)
-    x = x.unsqueeze(2)
     if equi:
         [targets, x, adj_mats] = equilibrage(targets, label, [x, adj_mats.to_dense()])
+    if perm:
+        x, adj_mats, targets = permutations([x, adj_mats, targets], batch=True)
+    x = x.unsqueeze(2)
 
     if diversity:
         class_repr = dataset_diversity(targets)
