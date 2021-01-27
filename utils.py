@@ -15,6 +15,9 @@ def load_data(x_file: str = None,
               targets_file: str = 'data/labels.pt',
               tr: float = 0.8,
               batch_size: int = 128,
+              diversity: bool = True,
+              equi: bool = True,
+              label = 2,
               perm: bool = False):
     """
     Load data.
@@ -45,20 +48,31 @@ def load_data(x_file: str = None,
     adj_mats = torch.load(adj_mats_file)
     if x_file is not None:
         x = torch.load(x_file)
+        out_features = 1
     else:
         x = torch.ones((adj_mats.size(0), adj_mats.size(1)))
     targets = torch.load(targets_file)
     if perm:
         x, adj_mats, targets = permutations([x, adj_mats, targets],
-                                            r=8, batch=True)
+                                            r=10, batch=True)
     x = x.unsqueeze(2)
-    data = list(zip(zip(x, adj_mats.to_dense()), targets))
+    if equi:
+        [targets, x, adj_mats] = equilibrage(targets, label, [x, adj_mats.to_dense()])
+
+    if diversity:
+        class_repr = dataset_diversity(targets)
+        print('Répartition des bactéries dans les classes')
+        for i, classes in enumerate(class_repr):
+            print('Label {} : {}'.format(i, classes))
+        out_features = len(class_repr)
+    print('Taille du dataset', len(x))
+    data = list(zip(zip(x, adj_mats), targets))
     random.shuffle(data)
     train = torch.utils.data.DataLoader(data[:int(len(data)*tr)],
                                         batch_size=batch_size, shuffle=True)
     test = torch.utils.data.DataLoader(data[int(len(data)*tr):],
                                        batch_size=batch_size, shuffle=True)
-    return train, test
+    return out_features, train, test
 
 
 def convert(M: any) -> torch.Tensor:
@@ -84,14 +98,48 @@ def convert(M: any) -> torch.Tensor:
     return Ms
 
 
-def accuracy(output: torch.Tensor, labels: torch.Tensor):
+def accuracy(output: torch.Tensor, labels: torch.Tensor, p : bool = False):
     """Compute tensor accuracy."""
     device = output.device
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
-    correct = (correct.sum(dim=1) == correct.size(1) * torch.ones(correct.size(0)).to(device))
-    correct = correct.double()
-    return (correct.sum(), len(correct.view(-1)))
+    correct_sim = (correct.sum(dim=1) == correct.size(1) * torch.ones(correct.size(0)).to(device))
+    correct_sim = correct_sim.double()
+    correct_1 = correct.sum(dim=1) / correct.size(1)
+    if p:
+        print(preds)
+        print(labels)
+    return ([correct_sim.sum(), len(correct_sim.view(-1))],
+            [correct_1.sum(), len(correct_1 .view(-1))])
+
+
+def equilibrage(tenseur_to_eq: torch.Tensor,
+                label, list_tenseurs: list = [], perc: float = 0.41):
+    """
+    Keep elements which have less than perc of "label" in tenseur_to_eq.
+
+    Parameters
+    ----------
+    tenseur_to_eq : torch.Tensor
+        Tensor use for the selection.
+    label : TYPE
+        The label we want to limit.
+    list_tenseurs : list, optional
+        Tensors with the same indexation as tenseur_to_eq. The default is [].
+    perc : float, optional
+        The threshold. The default is 0.41.
+
+    Returns
+    -------
+    new_list_tenseurs : TYPE
+        DESCRIPTION.
+
+    """
+    indices = ((tenseur_to_eq == label).sum(1) / tenseur_to_eq.size(1)) <= perc
+    new_list_tenseurs = [tenseur_to_eq[indices]]
+    for tenseur in list_tenseurs:
+        new_list_tenseurs.append(tenseur[indices])
+    return new_list_tenseurs
 
 
 def adj_normalize(adj):
@@ -109,11 +157,20 @@ def adj_normalize(adj):
     return torch.bmm(torch.bmm(D, adj_c), D).to_sparse()
 
 
-def dataset_diversity(targets_file='data/labels.pt'):
+def normalize(x: torch.Tensor):
+    """Locally row normalize a tensor"""
+    x_max = x.max(dim=x.dim() - 2)
+    x_min = x.min(dim=x.dim() - 2)
+    x_norm = torch.zeros((x.shape))
+    for i in range(len(x)):
+        x_norm[i] = 2*(x[i] - x_min[0][i])/(x_max[0][i] - x_min[0][i]) - 1
+    return x_norm
+
+
+def dataset_diversity(targets):
     """Compute dataset class representation."""
-    targets = torch.load(targets_file)
     L = targets.view(-1).size().numel()
-    C = targets.max()
+    C = int(targets.max())
     R = list()
     for i in range(C+1):
         R.append(round(float((targets == i).long().sum()/L), 2))

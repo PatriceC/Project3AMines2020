@@ -22,16 +22,25 @@ class GCN_Class(nn.Module):
         self.name_model = "GCN_Class"
 
         self.gcl1 = GraphConvolutionnalLayer(in_features, hidden_dim)
-        self.gcl2 = GraphConvolutionnalLayer(hidden_dim, classes)
+        self.gcl2 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
+        self.l1 = nn.Linear(hidden_dim, hidden_dim)
+        self.l2 = nn.Linear(hidden_dim, hidden_dim//2)
+        self.l3 = nn.Linear(hidden_dim//2, classes)
         self.dropout = dropout
 
     def forward(self, x, adj):
         """Forward."""
         out = self.gcl1(x, adj)
         out = out.relu()
+        out = self.gcl2(out, adj)
+        out = out.relu()
+        out = self.l1(out)
         out = torch.nn.functional.dropout(
             out, self.dropout, training=self.training)
-        out = self.gcl2(out, adj)
+        out = out.relu()
+        out = self.l2(out)
+        out = out.relu()
+        out = self.l3(out)
         return torch.nn.functional.log_softmax(out, dim=2).transpose(1, 2)
 
     def save(self):
@@ -55,16 +64,25 @@ class GCN_Reg(nn.Module):
         self.name_model = "GCN_Reg"
 
         self.gcl1 = GraphConvolutionnalLayer(in_features, hidden_dim)
-        self.gcl2 = GraphConvolutionnalLayer(hidden_dim, out_features)
+        self.gcl2 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
+        self.l1 = nn.Linear(hidden_dim, hidden_dim)
+        self.l2 = nn.Linear(hidden_dim, hidden_dim//2)
+        self.l3 = nn.Linear(hidden_dim//2, out_features)
         self.dropout = dropout
 
     def forward(self, x, adj):
         """Forward."""
         out = self.gcl1(x, adj)
         out = out.relu()
+        out = self.gcl2(out, adj)
+        out = out.relu()
+        out = self.l1(out)
         out = torch.nn.functional.dropout(
             out, self.dropout, training=self.training)
-        out = self.gcl2(out, adj)
+        out = out.relu()
+        out = self.l2(out)
+        out = out.relu()
+        out = self.l3(out)
         return out.relu()
 
     def save(self):
