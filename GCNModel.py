@@ -83,7 +83,7 @@ class GCN_Reg(nn.Module):
         out = self.l2(out)
         out = out.relu()
         out = self.l3(out)
-        return out.relu()
+        return out.tanh()
 
     def save(self):
         """Enregistre le modèle pour inférence dans le futur."""
