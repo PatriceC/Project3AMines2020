@@ -17,8 +17,9 @@ def load_data(x_file: str = None,
               batch_size: int = 128,
               diversity: bool = True,
               equi: bool = True,
-              label = 2,
-              perm: bool = False):
+              label: int = 2,
+              perm: bool = False,
+              r: float = np.inf):
     """
     Load data.
 
@@ -46,18 +47,22 @@ def load_data(x_file: str = None,
 
     """
     adj_mats = torch.load(adj_mats_file)
+    targets = torch.load(targets_file)
     if x_file is not None:
         x = torch.load(x_file)
-        out_features = 1
     else:
         x = torch.ones((adj_mats.size(0), adj_mats.size(1)))
-    targets = torch.load(targets_file)
     if equi:
-        [targets, x, adj_mats] = equilibrage(targets, label, [x, adj_mats.to_dense()])
+        [targets, x, adj_mats] = equilibrage(targets, label,
+                                             [x, adj_mats.to_dense()])
     if perm:
-        x, adj_mats, targets = permutations([x, adj_mats, targets], batch=True)
-    x = x.unsqueeze(2)
+        x, adj_mats, targets = permutations([x, adj_mats, targets],
+                                            r=r, batch=True)
+    if x_file is not None:
+        out_features = 1
+        targets = targets.unsqueeze(2)
 
+    x = x.unsqueeze(2)
     if diversity:
         class_repr = dataset_diversity(targets)
         print('Répartition des bactéries dans les classes')
@@ -97,12 +102,13 @@ def convert(M: any) -> torch.Tensor:
     return Ms
 
 
-def accuracy(output: torch.Tensor, labels: torch.Tensor, p : bool = False):
+def accuracy(output: torch.Tensor, labels: torch.Tensor, p: bool = False):
     """Compute tensor accuracy."""
     device = output.device
     preds = output.max(1)[1].type_as(labels)
     correct = preds.eq(labels).double()
-    correct_sim = (correct.sum(dim=1) == correct.size(1) * torch.ones(correct.size(0)).to(device))
+    correct_sim = (correct.sum(dim=1) == correct.size(1) *
+                   torch.ones(correct.size(0)).to(device))
     correct_sim = correct_sim.double()
     correct_1 = correct.sum(dim=1) / correct.size(1)
     if p:
@@ -157,7 +163,7 @@ def adj_normalize(adj):
 
 
 def normalize(x: torch.Tensor):
-    """Locally row normalize a tensor"""
+    """Locally row normalize a tensor."""
     x_max = x.max(dim=x.dim() - 2)
     x_min = x.min(dim=x.dim() - 2)
     x_norm = torch.zeros((x.shape))
@@ -211,7 +217,7 @@ def permutations(list_tenseurs, r=np.inf, batch=False):
                     a, b = new_tenseur[:, j].clone(), new_tenseur[:, i].clone()
                     new_tenseur[:, i], new_tenseur[:, j] = a, b
                 else:
-                    a_col, b_col = new_tenseur[:, i].clone(), new_tenseur[:, j].clone()
+                    a_col, b_col = new_tenseur[:, i].clone(),new_tenseur[:, j].clone()
                     new_tenseur[:, j], new_tenseur[:, i] = a_col, b_col
                     a_line, b_line = new_tenseur[i, :].clone(), new_tenseur[j, :].clone()
                     new_tenseur[j, :], new_tenseur[i, :] = a_line, b_line

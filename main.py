@@ -44,19 +44,20 @@ def data_processing(classification: bool = True):
         Number of out features of the model.
 
     """
+    diversity = classification
     if classification:
         out_features, train, test = utils.load_data(targets_file='data/labels.pt',
                                       batch_size=64,
-                                      diversity=True,
+                                      diversity=diversity,
                                       equi=True,
                                       perm=True)
     else:
         out_features, train, test = utils.load_data(x_file='data/init_pops.pt',
                                       targets_file='data/last_pops.pt',
                                       batch_size=64,
-                                      diversity=False,
+                                      diversity=diversity,
                                       equi=False,
-                                      perm=True)
+                                      perm=True, r=8)
     exemple = next(iter(train))
     in_features = exemple[0][0].shape[-1]
 
@@ -138,7 +139,7 @@ def trainning(model: GCN_Class or GCN_Reg,
     """
     learning_rate = 0.01
     weight_decay = 0.0001
-    num_epochs = 10
+    num_epochs = 100
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     optimizer = torch.optim.AdamW(model.parameters(),
