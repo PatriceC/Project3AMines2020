@@ -25,7 +25,8 @@ import utils
 
 def data_processing(classification: bool = True,
                     equi: bool = True,
-                    perm: bool = True):
+                    perm: bool = True,
+                    cv: int = 0):
     """
     Choose between classification or regression for Data Processing.
 
@@ -47,22 +48,39 @@ def data_processing(classification: bool = True,
 
     """
     if classification:
-        out_features, train, test = utils.load_data(targets_file='data/labels.pt',
-                                      batch_size=64,
-                                      diversity=classification,
-                                      equi=equi,
-                                      perm=perm)
+        if cv > 0:
+            out_features, dataset = utils.load_data(targets_file='data/labels.pt',
+                                                cv=cv,
+                                                batch_size=64,
+                                                diversity=classification,
+                                                equi=equi,
+                                                perm=perm)
+        else:
+            out_features, dataset = utils.load_data(targets_file='data/labels.pt',
+                                                batch_size=64,
+                                                diversity=classification,
+                                                equi=equi,
+                                                perm=perm)
     else:
-        out_features, train, test = utils.load_data(x_file='data/init_pops.pt',
-                                      targets_file='data/last_pops.pt',
-                                      batch_size=64,
-                                      diversity=classification,
-                                      equi=equi,
-                                      perm=perm, r=8)
-    exemple = next(iter(train))
+        if cv > 0:
+            out_features, dataset = utils.load_data(x_file='data/init_pops.pt',
+                                                    targets_file='data/last_pops.pt',
+                                                    cv=cv,
+                                                    batch_size=64,
+                                                    diversity=classification,
+                                                    equi=equi,
+                                                    perm=perm, r=8)
+        else:
+            out_features, dataset = utils.load_data(x_file='data/init_pops.pt',
+                                                    targets_file='data/last_pops.pt',
+                                                    batch_size=64,
+                                                    diversity=classification,
+                                                    equi=equi,
+                                                    perm=perm, r=8)
+    exemple = next(iter(dataset[0][0]))
     in_features = exemple[0][0].shape[-1]
 
-    return train, test, in_features, out_features
+    return dataset, in_features, out_features
 
 
 # %% Model
@@ -177,7 +195,7 @@ def trainning(model: GCN_Class or GCN_Reg,
         # Temps pour réaliser 10%
         start_time = time.time()
 
-        for batch, ((x, adj_mat), target) in enumerate(train):
+        for batch, (x, adj_mat, target) in enumerate(train):
 
             # adj_mat = utils.adj_normalize(adj_mat.to_sparse())
             if not classification:
@@ -206,7 +224,7 @@ def trainning(model: GCN_Class or GCN_Reg,
                 if classification:
                     acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
                 with torch.no_grad():
-                    for ((x_t, adj_mat_t), target_t) in test:
+                    for (x_t, adj_mat_t, target_t) in test:
                         # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
                         if not classification:
                             x_t = utils.normalize(x_t)
@@ -258,6 +276,178 @@ def trainning(model: GCN_Class or GCN_Reg,
     model.save()
 
     return model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1
+
+
+def cross_validation(model: GCN_Class or GCN_Reg,
+              criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
+              dataset: list,
+              cv: int,
+              classification: bool = True):
+    """
+    Train a model with cross validation.
+
+    Parameters
+    ----------
+    model : GCN_Class or GCN_Reg
+        Model to train.
+    criterion : torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss
+        Loss function.
+    train : torch.utils.data.dataloader.DataLoader
+        Train dataset.
+    test : torch.utils.data.dataloader.DataLoader
+        Test dataset.
+    cv : int,
+        Number of fold
+    classification : bool, optional
+        True: Classification else Regression. The default is True.
+
+    Returns
+    -------
+    model : GCN_Class or GCN_Reg
+        Model trained.
+    test_loss_list : list
+        Test loss.
+    train_loss_list : list
+        Train loss.
+    accuracy_list_sim : list
+        Test Simulation accuracy.
+    accuracy_list_1 : list
+        Test Classification accuracy.
+
+    """
+    learning_rate = 0.01
+    weight_decay = 0.0001
+    num_epochs = 20
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    dateTimeObj_start = datetime.now()
+    print('Début Entrainement :',
+          dateTimeObj_start.hour, 'H', dateTimeObj_start.minute)
+    test_loss_list_fold = []
+    train_loss_list_fold = []
+    accuracy_list_sim_fold = []
+    accuracy_list_1_fold = []
+    # On va faire les k folds
+    for k in range(cv):
+        [train, test] = dataset[k]
+        model_k = model
+        model_k.name_model = model_k.name_model + ' ' + str(k + 1)
+        optimizer = torch.optim.AdamW(model.parameters(),
+                                      lr=learning_rate,
+                                    weight_decay=weight_decay)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10.0, gamma=0.50)
+        n_batches = len(train)
+        test_loss_list = []
+        train_loss_list = []
+        accuracy_list_sim = []
+        accuracy_list_1 = []
+        # On va entrainer le modèle num_epochs fois
+        for epoch in range(1, num_epochs + 1):
+    
+            # Temps epoch
+            epoch_start_time = time.time()
+            dateTimeObj = datetime.now()
+            print('Fold', k + 1, 'Début epoch', epoch, ':',
+                  dateTimeObj.hour, 'H', dateTimeObj.minute)
+            # Modèle en mode entrainement
+            model_k.train()
+            # Pourcentage du Dataset réaliser
+            pourcentage = 0.
+            flag = True
+            # Loss du batch en cours
+            test_loss_batch = []
+            train_loss_batch = []
+    
+            # Temps pour réaliser 10%
+            start_time = time.time()
+    
+            for batch, ((x, adj_mat), target) in enumerate(train):
+    
+                # adj_mat = utils.adj_normalize(adj_mat.to_sparse())
+                if not classification:
+                    x = utils.normalize(x)
+                    target = utils.normalize(target)
+                # Initializing a gradient as 0
+                optimizer.zero_grad()
+                # Forward pass
+                output = model_k.forward(x.to(device), adj_mat.to(device))
+                loss = criterion(output, target.to(device))
+                # Propagating the error backward
+                loss.backward()
+    
+                # Optimizing the parameters
+                optimizer.step()
+                train_loss_batch.append(loss.item())
+    
+                # Pourcentage réel réaliser
+                count_pourcentage = batch / n_batches
+                # Si on a réalisé 10% nouveau du Dataset, on test
+                if count_pourcentage >= pourcentage:
+                    # Temps des 10%
+                    T = time.time() - start_time
+                    # Evaluation du modèel
+                    model_k.eval()
+                    if classification:
+                        acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
+                    with torch.no_grad():
+                        for ((x_t, adj_mat_t), target_t) in test:
+                            # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
+                            if not classification:
+                                x_t = utils.normalize(x_t)
+                                target_t = utils.normalize(target_t)
+                            output_t = model_k.forward(x_t.to(device),
+                                                     adj_mat_t.to(device))
+                            loss_t = criterion(output_t, target_t.to(device))
+                            test_loss_batch.append(loss_t.item())
+                            if classification:
+                                if pourcentage < 0.2 and flag:
+                                    acc = utils.accuracy(output_t, target_t.to(device), p=True)
+                                    flag = False
+                                else:
+                                    acc = utils.accuracy(output_t, target_t.to(device), p=False)
+                                cor_sim += acc[0][0]
+                                lcor_sim += acc[0][1]
+                                cor_1 += acc[1][0]
+                                lcor_1 += acc[1][1]
+                    test_loss = np.mean(test_loss_batch)
+                    test_loss_list.append(test_loss)
+                    if classification:
+                        accuracy_list_sim.append(cor_sim/lcor_sim)
+                        accuracy_list_1.append(cor_1/lcor_1)
+                    print('-'*10)
+                    if classification:
+                        print("Fold: {}, Epoch: {}, Pourcentage: {}%,  Temps : {}s".format(
+                            k + 1, epoch, round(100*pourcentage), round(T)))
+                        print("Test Loss : {:.6f}, Accuracy Simulation: {:.3f}, Accuracy Classification: {:.3f}".format(
+                            test_loss, cor_sim/lcor_sim, cor_1/lcor_1))
+                    else:
+                        print("Fold: {}, Epoch: {}, Pourcentage: {}%, Temps : {}s".format(
+                            k +1, epoch, round(100*pourcentage), round(T)))
+                        print("Test Loss : {:.6f}".format(test_loss))
+                    print('-'*10)
+    
+                    pourcentage += 0.2
+                    flag = True
+                    start_time = time.time()
+    
+            print('Fold: {}, Fin epoch : {}, Temps de l\'epoch : {}s'.format(
+                k + 1, epoch, round(time.time() - epoch_start_time)))
+            train_loss_list.append(np.mean(train_loss_batch))
+            scheduler.step()
+        graph(model_k, test_loss_list, train_loss_list, accuracy_list_sim,
+              accuracy_list_1, True)
+        test_loss_list_fold.append(test_loss_list)
+        train_loss_list_fold.append(train_loss_list)
+        accuracy_list_sim_fold.append(accuracy_list_sim)
+        accuracy_list_1_fold.append(accuracy_list_1)
+        model_k.save()
+
+    dateTimeObj_end = datetime.now()
+    print('Fin Entrainement :',
+          dateTimeObj_end.hour, 'H', dateTimeObj_end.minute,
+          'Durée :', dateTimeObj_end-dateTimeObj_start)
+
+    return model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold
 
 
 def testing(model: GCN_Class or GCN_Reg,
@@ -403,31 +593,45 @@ if __name__ == "__main__":
 
     classification = input("Do you want a regression model ? Y/[N] ") != "Y"
     load = input("Do you want to load an existing model ? Y/[N] ") == "Y"
+    crossval = False
+    if not load:
+        crossval = input("Do you want k fold cross-validation ? Y/[N] ") == "Y"
+        if crossval:
+            try:
+                cv = int(input('k fold value: [5] '))
+            except Exception:
+                cv = 5
     equi = input("Do you want to readjust the dataset ? [Y]/N ") != "N"
     perm = input("Do you want to create permutation of the dataset ? [Y]/N ") != "N"
-    train, test, in_features, out_features = data_processing(classification,
-                                                             equi, perm)
-    model, criterion = model_prep(in_features, out_features, classification)
 
-    if load:
-        try:
-            entireDataset = True
-            model, test_loss_list, accuracy_list_sim, accuracy_list_1 = testing(
-                model, criterion, test, train, entireDataset, classification)
-            train_loss_list, isTrained = list(), False
-            graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
-                  accuracy_list_1, isTrained)
-        except Exception as e:
-            print(e)
-            if input("Do you want to train the model ? [Y]/N ") != "N":
-                model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1 = trainning(
-                    model, criterion, train, test, classification)
-                isTrained = True
+    if crossval:
+        dataset, in_features, out_features = data_processing(classification,
+                                                                 equi, perm, cv)
+        model, criterion = model_prep(in_features, out_features, classification)
+        model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold = cross_validation(
+            model, criterion, dataset, cv, classification)
+        isTrained = True
+
+    else:
+        dataset, in_features, out_features = data_processing(classification,
+                                                                 equi, perm)
+        train = dataset[0][0]
+        test = dataset[0][1]
+        model, criterion = model_prep(in_features, out_features, classification)
+    
+        if load:
+            try:
+                entireDataset = True
+                model, test_loss_list, accuracy_list_sim, accuracy_list_1 = testing(
+                    model, criterion, test, train, entireDataset, classification)
+                train_loss_list, isTrained = list(), False
                 graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
                       accuracy_list_1, isTrained)
-    else:
-        model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1 = trainning(
-            model, criterion, train, test, classification)
-        isTrained = True
-        graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
-              accuracy_list_1, isTrained)
+            except Exception as e:
+                print(e)
+        else:
+            model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1 = trainning(
+                model, criterion, train, test, classification)
+            isTrained = True
+            graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
+                  accuracy_list_1, isTrained)
