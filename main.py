@@ -327,12 +327,13 @@ def cross_validation(model: GCN_Class or GCN_Reg,
     train_loss_list_fold = []
     accuracy_list_sim_fold = []
     accuracy_list_1_fold = []
+    name = model.name_model
     # On va faire les k folds
     for k in range(cv):
         [train, test] = dataset[k]
         model_k = model
         model_k.apply(utils.weights_init)
-        model_k.name_model = model.name_model + ' ' + str(k + 1)
+        model_k.name_model = name + ' ' + str(k + 1)
         optimizer = torch.optim.AdamW(model.parameters(),
                                       lr=learning_rate,
                                     weight_decay=weight_decay)
