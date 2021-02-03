@@ -8,7 +8,7 @@ Created on Tue Dec 15 00:47:01 2020
 import numpy as np
 import random
 import torch
-
+from GCNLayer import GraphConvolutionnalLayer
 
 def load_data(x_file: str = None,
               adj_mats_file: str = 'data/adj_mats.pt',
@@ -47,7 +47,7 @@ def load_data(x_file: str = None,
         Test dataset.
 
     """
-    adj_mats = torch.load(adj_mats_file)
+    adj_mats = torch.load(adj_mats_file).to_dense()
     targets = torch.load(targets_file)
     if x_file is not None:
         x = torch.load(x_file)
@@ -55,7 +55,7 @@ def load_data(x_file: str = None,
         x = torch.ones((adj_mats.size(0), adj_mats.size(1)))
     if equi:
         [targets, x, adj_mats] = equilibrage(targets, label,
-                                             [x, adj_mats.to_dense()])
+                                             [x, adj_mats])
     if perm:
         x, adj_mats, targets = permutations([x, adj_mats, targets],
                                             r=r, batch=True)
@@ -107,6 +107,14 @@ def load_data(x_file: str = None,
                                            shuffle=True)
         dataset = [[train, test]]
     return out_features, dataset
+
+
+def weights_init(m):
+    """Initialize weights."""
+    if isinstance(m, GraphConvolutionnalLayer):
+        m.reset_parameters()
+    elif isinstance(m, torch.nn.Linear):
+        m.reset_parameters()
 
 
 def convert(M: any) -> torch.Tensor:

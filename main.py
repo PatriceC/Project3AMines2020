@@ -204,7 +204,7 @@ def trainning(model: GCN_Class or GCN_Reg,
             # Initializing a gradient as 0
             optimizer.zero_grad()
             # Forward pass
-            output = model.forward(x.to(device), adj_mat.to(device))
+            output = model.forward(x.to(device), adj_mat.to_sparse().to(device))
             loss = criterion(output, target.to(device))
             # Propagating the error backward
             loss.backward()
@@ -230,7 +230,7 @@ def trainning(model: GCN_Class or GCN_Reg,
                             x_t = utils.normalize(x_t)
                             target_t = utils.normalize(target_t)
                         output_t = model.forward(x_t.to(device),
-                                                 adj_mat_t.to(device))
+                                                 adj_mat_t.to_sparse().to(device))
                         loss_t = criterion(output_t, target_t.to(device))
                         test_loss_batch.append(loss_t.item())
                         if classification:
@@ -331,7 +331,8 @@ def cross_validation(model: GCN_Class or GCN_Reg,
     for k in range(cv):
         [train, test] = dataset[k]
         model_k = model
-        model_k.name_model = model_k.name_model + ' ' + str(k + 1)
+        model_k.apply(utils.weights_init)
+        model_k.name_model = model.name_model + ' ' + str(k + 1)
         optimizer = torch.optim.AdamW(model.parameters(),
                                       lr=learning_rate,
                                     weight_decay=weight_decay)
@@ -361,7 +362,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
             # Temps pour réaliser 10%
             start_time = time.time()
     
-            for batch, ((x, adj_mat), target) in enumerate(train):
+            for batch, (x, adj_mat, target) in enumerate(train):
     
                 # adj_mat = utils.adj_normalize(adj_mat.to_sparse())
                 if not classification:
@@ -370,7 +371,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                 # Initializing a gradient as 0
                 optimizer.zero_grad()
                 # Forward pass
-                output = model_k.forward(x.to(device), adj_mat.to(device))
+                output = model_k.forward(x.to(device), adj_mat.to_sparse().to(device))
                 loss = criterion(output, target.to(device))
                 # Propagating the error backward
                 loss.backward()
@@ -390,13 +391,13 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                     if classification:
                         acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
                     with torch.no_grad():
-                        for ((x_t, adj_mat_t), target_t) in test:
+                        for (x_t, adj_mat_t, target_t) in test:
                             # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
                             if not classification:
                                 x_t = utils.normalize(x_t)
                                 target_t = utils.normalize(target_t)
                             output_t = model_k.forward(x_t.to(device),
-                                                     adj_mat_t.to(device))
+                                                     adj_mat_t.to_sparse().to(device))
                             loss_t = criterion(output_t, target_t.to(device))
                             test_loss_batch.append(loss_t.item())
                             if classification:
@@ -498,13 +499,13 @@ def testing(model: GCN_Class or GCN_Reg,
         raise Exception(e, 'No model to load')
 
     with torch.no_grad():
-        for ((x_t, adj_mat_t), target_t) in test:
+        for (x_t, adj_mat_t, target_t) in test:
             # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
             if not classification:
                 x_t = utils.normalize(x_t)
                 target_t = utils.normalize(target_t)
             output_t = model.forward(x_t.to(device),
-                                     adj_mat_t.to(device))
+                                     adj_mat_t.to_sparse().to(device))
             loss_t = criterion(output_t, target_t.to(device))
             test_loss_list.append(loss_t.item())
             if classification:
@@ -517,13 +518,13 @@ def testing(model: GCN_Class or GCN_Reg,
                 accuracy_list_sim.append(cor_sim/lcor_sim)
                 accuracy_list_1.append(cor_1/lcor_1)
         if entireDataset:
-            for ((x_t, adj_mat_t), target_t) in remain:
+            for (x_t, adj_mat_t, target_t) in remain:
                 # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
                 if not classification:
                     x_t = utils.normalize(x_t)
                     target_t = utils.normalize(target_t)
                 output_t = model.forward(x_t.to(device),
-                                         adj_mat_t.to(device))
+                                         adj_mat_t.to_sparse().to(device))
                 loss_t = criterion(output_t, target_t.to(device))
                 test_loss_list.append(loss_t.item())
                 if classification:
