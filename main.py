@@ -23,7 +23,9 @@ import utils
 
 # %% Data
 
-def data_processing(classification: bool = True):
+def data_processing(classification: bool = True,
+                    equi: bool = True,
+                    perm: bool = True):
     """
     Choose between classification or regression for Data Processing.
 
@@ -44,20 +46,19 @@ def data_processing(classification: bool = True):
         Number of out features of the model.
 
     """
-    diversity = classification
     if classification:
         out_features, train, test = utils.load_data(targets_file='data/labels.pt',
                                       batch_size=64,
-                                      diversity=diversity,
-                                      equi=True,
-                                      perm=True)
+                                      diversity=classification,
+                                      equi=equi,
+                                      perm=perm)
     else:
         out_features, train, test = utils.load_data(x_file='data/init_pops.pt',
                                       targets_file='data/last_pops.pt',
                                       batch_size=64,
-                                      diversity=diversity,
-                                      equi=False,
-                                      perm=True, r=8)
+                                      diversity=classification,
+                                      equi=equi,
+                                      perm=perm, r=8)
     exemple = next(iter(train))
     in_features = exemple[0][0].shape[-1]
 
@@ -139,7 +140,7 @@ def trainning(model: GCN_Class or GCN_Reg,
     """
     learning_rate = 0.01
     weight_decay = 0.0001
-    num_epochs = 100
+    num_epochs = 20
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     optimizer = torch.optim.AdamW(model.parameters(),
@@ -262,6 +263,7 @@ def trainning(model: GCN_Class or GCN_Reg,
 def testing(model: GCN_Class or GCN_Reg,
             criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
             test: torch.utils.data.dataloader.DataLoader,
+            remain: torch.utils.data.dataloader.DataLoader,
             entireDataset: bool = True,
             classification: bool = True):
     """
@@ -275,6 +277,8 @@ def testing(model: GCN_Class or GCN_Reg,
         Loss function.
     test : torch.utils.data.dataloader.DataLoader
         Test dataset.
+    remain : torch.utils.data.dataloader.DataLoader
+        Other part of dataset.
     classification : bool, optional
         True: Classification else Regression. The default is True.
     entireDataset : bool, optional
@@ -305,8 +309,12 @@ def testing(model: GCN_Class or GCN_Reg,
 
     with torch.no_grad():
         for ((x_t, adj_mat_t), target_t) in test:
-            adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
-            output_t = model.forward(x_t.to(device), adj_mat_t.to(device))
+            # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
+            if not classification:
+                x_t = utils.normalize(x_t)
+                target_t = utils.normalize(target_t)
+            output_t = model.forward(x_t.to(device),
+                                     adj_mat_t.to(device))
             loss_t = criterion(output_t, target_t.to(device))
             test_loss_list.append(loss_t.item())
             if classification:
@@ -319,9 +327,13 @@ def testing(model: GCN_Class or GCN_Reg,
                 accuracy_list_sim.append(cor_sim/lcor_sim)
                 accuracy_list_1.append(cor_1/lcor_1)
         if entireDataset:
-            for ((x_t, adj_mat_t), target_t) in train:
-                adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
-                output_t = model.forward(x_t.to(device), adj_mat_t.to(device))
+            for ((x_t, adj_mat_t), target_t) in remain:
+                # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
+                if not classification:
+                    x_t = utils.normalize(x_t)
+                    target_t = utils.normalize(target_t)
+                output_t = model.forward(x_t.to(device),
+                                         adj_mat_t.to(device))
                 loss_t = criterion(output_t, target_t.to(device))
                 test_loss_list.append(loss_t.item())
                 if classification:
@@ -375,12 +387,12 @@ def graph(model: GCN_Class or GCN_Reg,
     if classification:
         plt.figure(2)
         plt.plot(accuracy_list_sim)
-        plt.title(model.name_model + ': Accuracy')
+        plt.title(model.name_model + ': Simulation Accuracy')
         plt.ylim((0, 1))
         plt.show()
         plt.figure(3)
         plt.plot(accuracy_list_1)
-        plt.title(model.name_model + ': Accuracy')
+        plt.title(model.name_model + ': Classification Accuracy')
         plt.ylim((0, 1))
         plt.show()
 
@@ -389,17 +401,19 @@ def graph(model: GCN_Class or GCN_Reg,
 
 if __name__ == "__main__":
 
-    classification = True
-    if input("Do you want a regression model ? Y/[N] ") == "Y":
-        classification = False
-    train, test, in_features, out_features = data_processing(classification)
+    classification = input("Do you want a regression model ? Y/[N] ") != "Y"
+    load = input("Do you want to load an existing model ? Y/[N] ") == "Y"
+    equi = input("Do you want to readjust the dataset ? [Y]/N ") != "N"
+    perm = input("Do you want to create permutation of the dataset ? [Y]/N ") != "N"
+    train, test, in_features, out_features = data_processing(classification,
+                                                             equi, perm)
     model, criterion = model_prep(in_features, out_features, classification)
 
-    if input("Do you want to load an existing model ? Y/[N] ") == "Y":
+    if load:
         try:
             entireDataset = True
             model, test_loss_list, accuracy_list_sim, accuracy_list_1 = testing(
-                model, criterion, test, entireDataset, classification)
+                model, criterion, test, train, entireDataset, classification)
             train_loss_list, isTrained = list(), False
             graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
                   accuracy_list_1, isTrained)

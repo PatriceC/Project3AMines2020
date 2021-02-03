@@ -119,7 +119,7 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor, p: bool = False):
 
 
 def equilibrage(tenseur_to_eq: torch.Tensor,
-                label, list_tenseurs: list = [], perc: float = 0.41):
+                label, list_tenseurs: list = [], perc: float = 0.51):
     """
     Keep elements which have less than perc of "label" in tenseur_to_eq.
 
