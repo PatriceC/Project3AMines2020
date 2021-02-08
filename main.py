@@ -568,12 +568,16 @@ def graph(model: GCN_Class or GCN_Reg,
     plt.figure(0)
     plt.plot(test_loss_list)
     plt.title(model.name_model + ': Test Loss')
+    plt.xlabel('Pourcentage d\'entrainement')
+    plt.ylabel('Loss')
     plt.show()
 
     if isTrained:
         plt.figure(1)
         plt.plot(train_loss_list)
         plt.title(model.name_model + ': Train Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
         plt.show()
 
     if classification:
@@ -581,11 +585,15 @@ def graph(model: GCN_Class or GCN_Reg,
         plt.plot(accuracy_list_sim)
         plt.title(model.name_model + ': Simulation Accuracy')
         plt.ylim((0, 1))
+        plt.xlabel('Pourcentage d\'entrainement')
+        plt.ylabel('Ratio')
         plt.show()
         plt.figure(3)
         plt.plot(accuracy_list_1)
         plt.title(model.name_model + ': Classification Accuracy')
         plt.ylim((0, 1))
+        plt.xlabel('Pourcentage d\'entrainement')
+        plt.ylabel('Ratio')
         plt.show()
 
 
