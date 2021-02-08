@@ -76,10 +76,8 @@ def load_data(x_file: str = None,
 
 
     if load:
-        dataset_test = torch.utils.data.TensorDataset(x, adj_mats, targets)
+        test = [[x, adj_mats, targets]]
         train = 0
-        test = torch.utils.data.DataLoader(dataset_test,
-                                           batch_size=len(dataset_test))
         dataset = [[train, test]]
     else:
         shuf = np.arange(n)
@@ -91,11 +89,7 @@ def load_data(x_file: str = None,
             for k in range(cv):
                 ind = np.arange(int(1 * n//cv), int((1 + 1) * n//cv))
                 ind_test = np.array([i for i in range(n) if i not in ind])
-                test = torch.utils.data.TensorDataset(x[ind],
-                                                       adj_mats[ind],
-                                                      targets[ind])
-                test = torch.utils.data.DataLoader(test,
-                                                   batch_size=len(test))
+                test = [[x[ind], adj_mats[ind], targets[ind]]]
                 train = torch.utils.data.TensorDataset(x[ind_test],
                                                       adj_mats[ind_test],
                                                       targets[ind_test])
@@ -108,14 +102,10 @@ def load_data(x_file: str = None,
             dataset_train = torch.utils.data.TensorDataset(x[:int(n*tr)],
                                                            adj_mats[:int(n*tr)],
                                                            targets[:int(n*tr)])
-            dataset_test = torch.utils.data.TensorDataset(x[int(n*tr):],
-                                                          adj_mats[int(n*tr):],
-                                                          targets[int(n*tr):])
+            test = [[x[int(n*tr):], adj_mats[int(n*tr):], targets[int(n*tr):]]]
             train = torch.utils.data.DataLoader(dataset_train,
                                                 batch_size=batch_size,
                                                 shuffle=True)
-            test = torch.utils.data.DataLoader(dataset_test,
-                                               batch_size=len(dataset_test))
             dataset = [[train, test]]
     return out_features, dataset
 

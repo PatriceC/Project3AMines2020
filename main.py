@@ -275,7 +275,7 @@ def trainning(model: GCN_Class or GCN_Reg,
     dateTimeObj_end = datetime.now()
     print('Fin Entrainement :',
           dateTimeObj_end.hour, 'H', dateTimeObj_end.minute,
-          'Durée :', dateTimeObj_end-dateTimeObj_start)
+          'min, Durée :', dateTimeObj_end-dateTimeObj_start)
     model.save()
 
     return model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1
@@ -450,7 +450,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
     dateTimeObj_end = datetime.now()
     print('Fin Entrainement :',
           dateTimeObj_end.hour, 'H', dateTimeObj_end.minute,
-          'Durée :', dateTimeObj_end-dateTimeObj_start)
+          'min, Durée :', dateTimeObj_end-dateTimeObj_start)
 
     return model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold
 
@@ -549,7 +549,7 @@ def graph(model: GCN_Class or GCN_Reg,
     plt.figure(0)
     plt.plot(test_loss_list)
     plt.title(model.name_model + ': Test Loss')
-    plt.xlabel('Pourcentage d\'entrainement')
+    plt.xlabel('5 * Number of epochs')
     plt.ylabel('Loss')
     plt.show()
 
@@ -566,14 +566,14 @@ def graph(model: GCN_Class or GCN_Reg,
         plt.plot(accuracy_list_sim)
         plt.title(model.name_model + ': Simulation Accuracy')
         plt.ylim((0, 1))
-        plt.xlabel('Pourcentage d\'entrainement')
+        plt.xlabel('5 * Number of epochs')
         plt.ylabel('Ratio')
         plt.show()
         plt.figure(3)
         plt.plot(accuracy_list_1)
         plt.title(model.name_model + ': Classification Accuracy')
         plt.ylim((0, 1))
-        plt.xlabel('Pourcentage d\'entrainement')
+        plt.xlabel('5 * Number of epochs')
         plt.ylabel('Ratio')
         plt.show()
 
