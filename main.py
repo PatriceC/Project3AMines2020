@@ -26,7 +26,8 @@ import utils
 def data_processing(classification: bool = True,
                     equi: bool = True,
                     perm: bool = True,
-                    cv: int = 0):
+                    cv: int = 0,
+                    load: bool = False):
     """
     Choose between classification or regression for Data Processing.
 
@@ -60,7 +61,8 @@ def data_processing(classification: bool = True,
                                                 batch_size=64,
                                                 diversity=classification,
                                                 equi=equi,
-                                                perm=perm)
+                                                perm=perm,
+                                                load=load)
     else:
         if cv > 0:
             out_features, dataset = utils.load_data(x_file='data/init_pops.pt',
@@ -76,7 +78,8 @@ def data_processing(classification: bool = True,
                                                     batch_size=64,
                                                     diversity=classification,
                                                     equi=equi,
-                                                    perm=perm, r=8)
+                                                    perm=perm, r=8,
+                                                    load=load)
     exemple = next(iter(dataset[0][0]))
     in_features = exemple[0][0].shape[-1]
 
@@ -158,13 +161,13 @@ def trainning(model: GCN_Class or GCN_Reg,
     """
     learning_rate = 0.01
     weight_decay = 0.0001
-    num_epochs = 20
+    num_epochs = 5
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     optimizer = torch.optim.AdamW(model.parameters(),
                                   lr=learning_rate,
                                   weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10.0, gamma=0.50)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.50)
 
     dateTimeObj_start = datetime.now()
     print('Début Entrainement :',
@@ -317,7 +320,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
     """
     learning_rate = 0.01
     weight_decay = 0.0001
-    num_epochs = 20
+    num_epochs = 5
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     dateTimeObj_start = datetime.now()
@@ -337,7 +340,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         optimizer = torch.optim.AdamW(model.parameters(),
                                       lr=learning_rate,
                                     weight_decay=weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 10.0, gamma=0.50)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.50)
         n_batches = len(train)
         test_loss_list = []
         train_loss_list = []
@@ -455,8 +458,6 @@ def cross_validation(model: GCN_Class or GCN_Reg,
 def testing(model: GCN_Class or GCN_Reg,
             criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
             test: torch.utils.data.dataloader.DataLoader,
-            remain: torch.utils.data.dataloader.DataLoader,
-            entireDataset: bool = True,
             classification: bool = True):
     """
     Test a model.
@@ -498,7 +499,7 @@ def testing(model: GCN_Class or GCN_Reg,
         model.load()
     except Exception as e:
         raise Exception(e, 'No model to load')
-
+    model.eval()
     with torch.no_grad():
         for (x_t, adj_mat_t, target_t) in test:
             # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
@@ -515,28 +516,8 @@ def testing(model: GCN_Class or GCN_Reg,
                 lcor_sim += acc[0][1]
                 cor_1 += acc[1][0]
                 lcor_1 += acc[1][1]
-            if classification:
                 accuracy_list_sim.append(cor_sim/lcor_sim)
                 accuracy_list_1.append(cor_1/lcor_1)
-        if entireDataset:
-            for (x_t, adj_mat_t, target_t) in remain:
-                # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
-                if not classification:
-                    x_t = utils.normalize(x_t)
-                    target_t = utils.normalize(target_t)
-                output_t = model.forward(x_t.to(device),
-                                         adj_mat_t.to_sparse().to(device))
-                loss_t = criterion(output_t, target_t.to(device))
-                test_loss_list.append(loss_t.item())
-                if classification:
-                    acc = utils.accuracy(output_t, target_t.to(device))
-                    cor_sim += acc[0][0]
-                    lcor_sim += acc[0][1]
-                    cor_1 += acc[1][0]
-                    lcor_1 += acc[1][1]
-                if classification:
-                    accuracy_list_sim.append(cor_sim/lcor_sim)
-                    accuracy_list_1.append(cor_1/lcor_1)
     return model, test_loss_list, accuracy_list_sim, accuracy_list_1
 
 
@@ -624,16 +605,15 @@ if __name__ == "__main__":
 
     else:
         dataset, in_features, out_features = data_processing(classification,
-                                                                 equi, perm)
+                                                             equi, perm, load)
         train = dataset[0][0]
         test = dataset[0][1]
         model, criterion = model_prep(in_features, out_features, classification)
     
         if load:
             try:
-                entireDataset = True
                 model, test_loss_list, accuracy_list_sim, accuracy_list_1 = testing(
-                    model, criterion, test, train, entireDataset, classification)
+                    model, criterion, test, classification)
                 train_loss_list, isTrained = list(), False
                 graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
                       accuracy_list_1, isTrained)

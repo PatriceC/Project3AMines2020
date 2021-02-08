@@ -20,7 +20,8 @@ def load_data(x_file: str = None,
               equi: bool = True,
               label: int = 2,
               perm: bool = False,
-              r: float = np.inf):
+              r: float = np.inf,
+              load: bool = False):
     """
     Load data.
 
@@ -73,39 +74,49 @@ def load_data(x_file: str = None,
     n = len(x)
     print('Taille du dataset', n)
 
-    shuf = np.arange(n)
-    random.shuffle(shuf)
-    x, adj_mats, targets = x[shuf], adj_mats[shuf], targets[shuf]
 
-    if cv > 0:
-        dataset = list()
-        for k in range(cv):
-            ind = np.arange(int(1 * n//cv), int((1 + 1) * n//cv))
-            ind_test = np.array([i for i in range(n) if i not in ind])
-            test = torch.utils.data.TensorDataset(x[ind],
-                                                   adj_mats[ind],
-                                                  targets[ind])
-            test = torch.utils.data.DataLoader(test, batch_size=batch_size,
-                                                shuffle=True)
-            train = torch.utils.data.TensorDataset(x[ind_test],
-                                                  adj_mats[ind_test],
-                                                  targets[ind_test])
-            train = torch.utils.data.DataLoader(train, batch_size=batch_size,
-                                               shuffle=True)
-            dataset.append([train, test])
-
-    else:
-        dataset_train = torch.utils.data.TensorDataset(x[:int(n*tr)],
-                                                       adj_mats[:int(n*tr)],
-                                                       targets[:int(n*tr)])
-        dataset_test = torch.utils.data.TensorDataset(x[int(n*tr):],
-                                                       adj_mats[int(n*tr):],
-                                                       targets[int(n*tr):])
-        train = torch.utils.data.DataLoader(dataset_train, batch_size=batch_size,
-                                            shuffle=True)
-        test = torch.utils.data.DataLoader(dataset_test, batch_size=batch_size,
-                                           shuffle=True)
+    if load:
+        dataset_test = torch.utils.data.TensorDataset(x, adj_mats, targets)
+        train = 0
+        test = torch.utils.data.DataLoader(dataset_test,
+                                           batch_size=len(dataset_test))
         dataset = [[train, test]]
+    else:
+        shuf = np.arange(n)
+        random.shuffle(shuf)
+        x, adj_mats, targets = x[shuf], adj_mats[shuf], targets[shuf]
+    
+        if cv > 0:
+            dataset = list()
+            for k in range(cv):
+                ind = np.arange(int(1 * n//cv), int((1 + 1) * n//cv))
+                ind_test = np.array([i for i in range(n) if i not in ind])
+                test = torch.utils.data.TensorDataset(x[ind],
+                                                       adj_mats[ind],
+                                                      targets[ind])
+                test = torch.utils.data.DataLoader(test,
+                                                   batch_size=len(test))
+                train = torch.utils.data.TensorDataset(x[ind_test],
+                                                      adj_mats[ind_test],
+                                                      targets[ind_test])
+                train = torch.utils.data.DataLoader(train,
+                                                    batch_size=batch_size,
+                                                    shuffle=True)
+                dataset.append([train, test])
+    
+        else:
+            dataset_train = torch.utils.data.TensorDataset(x[:int(n*tr)],
+                                                           adj_mats[:int(n*tr)],
+                                                           targets[:int(n*tr)])
+            dataset_test = torch.utils.data.TensorDataset(x[int(n*tr):],
+                                                          adj_mats[int(n*tr):],
+                                                          targets[int(n*tr):])
+            train = torch.utils.data.DataLoader(dataset_train,
+                                                batch_size=batch_size,
+                                                shuffle=True)
+            test = torch.utils.data.DataLoader(dataset_test,
+                                               batch_size=len(dataset_test))
+            dataset = [[train, test]]
     return out_features, dataset
 
 
