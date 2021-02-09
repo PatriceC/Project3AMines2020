@@ -53,7 +53,7 @@ class GCN_Class(nn.Module):
 
 
 class GCN_Reg(nn.Module):
-    """Graph Convolutionnal Classification Model."""
+    """Graph Convolutionnal Regression Model."""
 
     def __init__(self, in_features, hidden_dim, out_features, dropout=0.1):
         super(GCN_Reg, self).__init__()

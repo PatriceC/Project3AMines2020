@@ -80,8 +80,8 @@ def data_processing(classification: bool = True,
                                                     equi=equi,
                                                     perm=perm, r=8,
                                                     load=load)
-    exemple = next(iter(dataset[0][0]))
-    in_features = exemple[0][0].shape[-1]
+    exemple = dataset[0][1][0]
+    in_features = exemple[0].shape[-1]
 
     return dataset, in_features, out_features
 
@@ -167,7 +167,7 @@ def trainning(model: GCN_Class or GCN_Reg,
     optimizer = torch.optim.AdamW(model.parameters(),
                                   lr=learning_rate,
                                   weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.60)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2, gamma=0.50)
 
     dateTimeObj_start = datetime.now()
     print('Début Entrainement :',
@@ -226,6 +226,7 @@ def trainning(model: GCN_Class or GCN_Reg,
                 model.eval()
                 if classification:
                     acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
+                    confmat = np.zeros((model.classes, model.classes))
                 with torch.no_grad():
                     for (x_t, adj_mat_t, target_t) in test:
                         # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
@@ -246,6 +247,7 @@ def trainning(model: GCN_Class or GCN_Reg,
                             lcor_sim += acc[0][1]
                             cor_1 += acc[1][0]
                             lcor_1 += acc[1][1]
+                            confmat += acc[2]
                 test_loss = np.mean(test_loss_batch)
                 test_loss_list.append(test_loss)
                 if classification:
@@ -257,6 +259,8 @@ def trainning(model: GCN_Class or GCN_Reg,
                         round(100*pourcentage), epoch, round(T)))
                     print("Test Loss : {:.6f}, Accuracy Simulation: {:.3f}, Accuracy Classification: {:.3f}".format(
                         test_loss, cor_sim/lcor_sim, cor_1/lcor_1))
+                    print('Confusion Matrix :\n', confmat,
+                          '\n Labels :', np.arange(model.classes))
                 else:
                     print("Pourcentage: {}%, Epoch: {}, Temps : {}s".format(
                         round(100*pourcentage), epoch, round(T)))
@@ -340,7 +344,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         optimizer = torch.optim.AdamW(model.parameters(),
                                       lr=learning_rate,
                                     weight_decay=weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.60)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2, gamma=0.50)
         n_batches = len(train)
         test_loss_list = []
         train_loss_list = []
@@ -394,6 +398,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                     model_k.eval()
                     if classification:
                         acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
+                        confmat = np.zeros((model.classes, model.classes))
                     with torch.no_grad():
                         for (x_t, adj_mat_t, target_t) in test:
                             # adj_mat_t = utils.adj_normalize(adj_mat_t.to_sparse())
@@ -414,6 +419,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                                 lcor_sim += acc[0][1]
                                 cor_1 += acc[1][0]
                                 lcor_1 += acc[1][1]
+                                confmat += acc[2]
                     test_loss = np.mean(test_loss_batch)
                     test_loss_list.append(test_loss)
                     if classification:
@@ -425,6 +431,8 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                             k + 1, epoch, round(100*pourcentage), round(T)))
                         print("Test Loss : {:.6f}, Accuracy Simulation: {:.3f}, Accuracy Classification: {:.3f}".format(
                             test_loss, cor_sim/lcor_sim, cor_1/lcor_1))
+                        print('Confusion Matrix :\n', confmat,
+                              '\n Labels :', np.arange(model.classes))
                     else:
                         print("Fold: {}, Epoch: {}, Pourcentage: {}%, Temps : {}s".format(
                             k +1, epoch, round(100*pourcentage), round(T)))
@@ -494,6 +502,7 @@ def testing(model: GCN_Class or GCN_Reg,
     accuracy_list_sim = []
     accuracy_list_1 = []
     acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
+    confmat =  np.zeros((model.classes, model.classes))
 
     try:
         model.load()
@@ -516,9 +525,10 @@ def testing(model: GCN_Class or GCN_Reg,
                 lcor_sim += acc[0][1]
                 cor_1 += acc[1][0]
                 lcor_1 += acc[1][1]
+                confmat += acc[2]
                 accuracy_list_sim.append(cor_sim/lcor_sim)
                 accuracy_list_1.append(cor_1/lcor_1)
-    return model, test_loss_list, accuracy_list_sim, accuracy_list_1
+    return model, test_loss_list, accuracy_list_sim, accuracy_list_1, confmat
 
 
 # %% Plot
@@ -592,42 +602,57 @@ if __name__ == "__main__":
                 cv = int(input('k fold value: [5] '))
             except Exception:
                 cv = 5
+        try:
+            num_epochs = int(input('How many epochs of training ? [10] '))
+        except Exception:
+            num_epochs = 10
     equi = input("Do you want to readjust the dataset ? [Y]/N ") != "N"
     perm = input("Do you want to create permutation of the dataset ? [Y]/N ") != "N"
 
     learning_rate = 0.01
     weight_decay = 0.0001
-    num_epochs = 5
 
     if crossval:
-        dataset, in_features, out_features = data_processing(classification,
-                                                                 equi, perm, cv)
-        model, criterion = model_prep(in_features, out_features, classification)
+        dataset, in_features, out_features = data_processing(
+            classification=classification, equi=equi, perm=perm, cv=cv)
+        model, criterion = model_prep(in_features=in_features,
+                                      out_features=out_features,
+                                      classification=classification)
         model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold = cross_validation(
-            model, criterion, dataset, cv, classification,
-            learning_rate, weight_decay, num_epochs)
+            model=model, criterion=criterion, dataset=dataset, cv=cv,
+            classification=classification, learning_rate=learning_rate,
+            weight_decay=weight_decay, num_epochs=num_epochs)
         isTrained = True
 
     else:
-        dataset, in_features, out_features = data_processing(classification,
-                                                             equi, perm, load)
+        dataset, in_features, out_features = data_processing(
+            classification=classification, equi=equi, perm=perm, load=load)
         train = dataset[0][0]
         test = dataset[0][1]
-        model, criterion = model_prep(in_features, out_features, classification)
+        model, criterion = model_prep(in_features=in_features,
+                                      out_features=out_features,
+                                      classification=classification)
     
         if load:
             try:
-                model, test_loss_list, accuracy_list_sim, accuracy_list_1 = testing(
-                    model, criterion, test, classification)
-                train_loss_list, isTrained = list(), False
-                graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
-                      accuracy_list_1, isTrained)
+                model, test_loss_list, accuracy_list_sim, accuracy_list_1, confmat = testing(
+                    model=model, criterion=criterion, test=test,
+                    classification=classification)
+                print('Loss :', round(test_loss_list[0], 6),
+                      'Simulation Accuracy : {:.2f}%'.format(accuracy_list_sim[0]*100),
+                      'Classification Accuracy : {:.2f}%'.format(accuracy_list_1[0]*100))
+                print('Confusion Matrix :\n', confmat,
+                      '\n Labels :', np.arange(model.classes))
             except Exception as e:
                 print(e)
         else:
             model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1 = trainning(
-                model, criterion, train, test, classification,
-                learning_rate, weight_decay, num_epochs)
+                model=model, criterion=criterion, train=train,
+                test=test, classification=classification,
+                learning_rate=learning_rate, weight_decay=weight_decay,
+                num_epochs=num_epochs)
             isTrained = True
-            graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
-                  accuracy_list_1, isTrained)
+            graph(model=model, test_loss_list=test_loss_list,
+                      train_loss_list=train_loss_list,
+                      accuracy_list_sim=accuracy_list_sim,
+                      accuracy_list_1=accuracy_list_1, isTrained=isTrained)

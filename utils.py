@@ -8,6 +8,7 @@ Created on Tue Dec 15 00:47:01 2020
 import numpy as np
 import random
 import torch
+from sklearn.metrics import confusion_matrix
 from GCNLayer import GraphConvolutionnalLayer
 
 def load_data(x_file: str = None,
@@ -58,8 +59,12 @@ def load_data(x_file: str = None,
         [targets, x, adj_mats] = equilibrage(targets, label,
                                              [x, adj_mats])
     if perm:
-        x, adj_mats, targets = permutations([x, adj_mats, targets],
-                                            r=r, batch=True)
+        if load:
+            x, adj_mats, targets = permutations([x, adj_mats, targets],
+                                                r=8, batch=True)
+        else:
+            x, adj_mats, targets = permutations([x, adj_mats, targets],
+                                                r=r, batch=True)
     if x_file is not None:
         out_features = 1
         targets = targets.unsqueeze(2)
@@ -145,6 +150,7 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor, p: bool = False):
     """Compute tensor accuracy."""
     device = output.device
     preds = output.max(1)[1].type_as(labels)
+    confmat = confusion_matrix(labels.cpu().flatten(), preds.cpu().flatten())
     correct = preds.eq(labels).double()
     correct_sim = (correct.sum(dim=1) == correct.size(1) *
                    torch.ones(correct.size(0)).to(device))
@@ -154,11 +160,12 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor, p: bool = False):
         print(preds)
         print(labels)
     return ([correct_sim.sum(), len(correct_sim.view(-1))],
-            [correct_1.sum(), len(correct_1 .view(-1))])
+            [correct_1.sum(), len(correct_1 .view(-1))],
+            confmat)
 
 
 def equilibrage(tenseur_to_eq: torch.Tensor,
-                label, list_tenseurs: list = [], perc: float = 0.51):
+                label, list_tenseurs: list = [], perc: float = 0.61):
     """
     Keep elements which have less than perc of "label" in tenseur_to_eq.
 
