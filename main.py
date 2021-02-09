@@ -128,7 +128,10 @@ def trainning(model: GCN_Class or GCN_Reg,
               criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
               train: torch.utils.data.dataloader.DataLoader,
               test: torch.utils.data.dataloader.DataLoader,
-              classification: bool = True):
+              classification: bool = True,
+              learning_rate: float = 0.01,
+              weight_decay: float = 0.0001,
+              num_epochs: float = 5):
     """
     Train a model.
 
@@ -159,19 +162,16 @@ def trainning(model: GCN_Class or GCN_Reg,
         Test Classification accuracy.
 
     """
-    learning_rate = 0.01
-    weight_decay = 0.0001
-    num_epochs = 5
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     optimizer = torch.optim.AdamW(model.parameters(),
                                   lr=learning_rate,
                                   weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.50)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.60)
 
     dateTimeObj_start = datetime.now()
     print('Début Entrainement :',
-          dateTimeObj_start.hour, 'H', dateTimeObj_start.minute)
+          dateTimeObj_start.hour, 'H', dateTimeObj_start.minute, 'min')
     test_loss_list = []
     train_loss_list = []
     accuracy_list_sim = []
@@ -185,7 +185,7 @@ def trainning(model: GCN_Class or GCN_Reg,
         epoch_start_time = time.time()
         dateTimeObj = datetime.now()
         print('Début epoch', epoch, ':',
-              dateTimeObj.hour, 'H', dateTimeObj.minute)
+              dateTimeObj.hour, 'H', dateTimeObj.minute, 'min')
         # Modèle en mode entrainement
         model.train()
         # Pourcentage du Dataset réaliser
@@ -285,7 +285,10 @@ def cross_validation(model: GCN_Class or GCN_Reg,
               criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
               dataset: list,
               cv: int,
-              classification: bool = True):
+              classification: bool = True,
+              learning_rate: float = 0.01,
+              weight_decay: float = 0.0001,
+              num_epochs: float = 5):
     """
     Train a model with cross validation.
 
@@ -318,14 +321,11 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         Test Classification accuracy.
 
     """
-    learning_rate = 0.01
-    weight_decay = 0.0001
-    num_epochs = 5
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     dateTimeObj_start = datetime.now()
     print('Début Entrainement :',
-          dateTimeObj_start.hour, 'H', dateTimeObj_start.minute)
+          dateTimeObj_start.hour, 'H', dateTimeObj_start.minute, 'min')
     test_loss_list_fold = []
     train_loss_list_fold = []
     accuracy_list_sim_fold = []
@@ -340,7 +340,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         optimizer = torch.optim.AdamW(model.parameters(),
                                       lr=learning_rate,
                                     weight_decay=weight_decay)
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.50)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.60)
         n_batches = len(train)
         test_loss_list = []
         train_loss_list = []
@@ -353,7 +353,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
             epoch_start_time = time.time()
             dateTimeObj = datetime.now()
             print('Fold', k + 1, 'Début epoch', epoch, ':',
-                  dateTimeObj.hour, 'H', dateTimeObj.minute)
+                  dateTimeObj.hour, 'H', dateTimeObj.minute, 'min')
             # Modèle en mode entrainement
             model_k.train()
             # Pourcentage du Dataset réaliser
@@ -595,12 +595,17 @@ if __name__ == "__main__":
     equi = input("Do you want to readjust the dataset ? [Y]/N ") != "N"
     perm = input("Do you want to create permutation of the dataset ? [Y]/N ") != "N"
 
+    learning_rate = 0.01
+    weight_decay = 0.0001
+    num_epochs = 5
+
     if crossval:
         dataset, in_features, out_features = data_processing(classification,
                                                                  equi, perm, cv)
         model, criterion = model_prep(in_features, out_features, classification)
         model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold = cross_validation(
-            model, criterion, dataset, cv, classification)
+            model, criterion, dataset, cv, classification,
+            learning_rate, weight_decay, num_epochs)
         isTrained = True
 
     else:
@@ -621,7 +626,8 @@ if __name__ == "__main__":
                 print(e)
         else:
             model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1 = trainning(
-                model, criterion, train, test, classification)
+                model, criterion, train, test, classification,
+                learning_rate, weight_decay, num_epochs)
             isTrained = True
             graph(model, test_loss_list, train_loss_list, accuracy_list_sim,
                   accuracy_list_1, isTrained)
