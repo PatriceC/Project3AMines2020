@@ -36,17 +36,29 @@ def load_data(x_file: str = None,
         Target file path. The default is 'data/labels.pt'.
     tr : float, optional
         Training size. The default is 0.8.
+    cv : int, optional
+        Number of fold for cross validation. The default is 0.
     batch_size : int, optional
         Batch size. The default is 128.
+    diversity : bool, optional
+        If you want the labels distribution. The default is True.
+    equi : bool, optional
+        If you want to have equal size labels. The default is True.
+    label : int, optional
+        The label you want to limit the size if equi is True. The default is 2.
     perm : bool, optional
         Dataset increase by permutation. The default is False.
+    r : int, optional
+        Number of permutation. The default is np.inf.
+    load : bool, optional
+        If you want only one set. The default is False.
 
     Returns
     -------
-    train : torch.utils.data.dataloader.DataLoader
-        Train dataset.
-    test : torch.utils.data.dataloader.DataLoader
-        Test dataset.
+    out_features : int
+        Number of out features of the model.
+    dataset : list
+        List containing the train and test set.
 
     """
     adj_mats = torch.load(adj_mats_file).to_dense()

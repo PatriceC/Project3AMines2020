@@ -36,18 +36,27 @@ def data_processing(classification: bool = True,
     ----------
     classification : bool, optional
         True: Classification else Regression. The default is True.
+    batch_size : int, optional
+        Batch size. The default is 64.
+    equi : bool, optional
+        If you want to have equal size labels. The default is True.
+    perm : bool, optional
+        If you want to create permutations of the dataset. The default is True.
+    r : int, optional
+        Number of permutation. The default is 8.
+    cv : int, optional
+        Number of fold for cross validation. The default is 0.
+    load : bool, optional
+        If you want only one set. The default is False.
 
     Returns
     -------
-    train : torch.utils.data.dataloader.DataLoader
-        Train dataset.
-    test : torch.utils.data.dataloader.DataLoader
-        Test dataset.
+    dataset : list
+        List containing the train and test set.
     in_features : int
         Number of in features of the model.
     out_features : int
         Number of out features of the model.
-
     """
     if classification:
         if cv > 0:
@@ -102,6 +111,8 @@ def model_prep(in_features: int, out_features: int,
         Number of out features of the model.
     classification : bool, optional
         True: Classification else Regression. The default is True.
+    AvCuda : bool, optional
+        If you want to use cuda. The default is True.
 
     Returns
     -------
@@ -153,6 +164,14 @@ def trainning(model: GCN_Class or GCN_Reg,
         Test dataset.
     classification : bool, optional
         True: Classification else Regression. The default is True.
+    learning_rate : float, optional
+        Learning rate. The default is 0.01.
+    weight_decay : float, optional
+        Weight Decay. The default is 0.0001.
+    num_epochs : float, optional
+        Number of epochs. The default is 10.
+    AvCuda : bool, optional
+        If you want to use cuda. The default is True.
 
     Returns
     -------
@@ -166,6 +185,8 @@ def trainning(model: GCN_Class or GCN_Reg,
         Test Simulation accuracy.
     accuracy_list_1 : list
         Test Classification accuracy.
+    confmat_list : TYPE
+        Confusion Matrix.
 
     """
     if AvCuda:
@@ -314,14 +335,20 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         Model to train.
     criterion : torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss
         Loss function.
-    train : torch.utils.data.dataloader.DataLoader
-        Train dataset.
-    test : torch.utils.data.dataloader.DataLoader
-        Test dataset.
+    dataset : list
+        Dataset with train and test set.
     cv : int,
         Number of fold
     classification : bool, optional
         True: Classification else Regression. The default is True.
+    learning_rate : float, optional
+        Learning rate. The default is 0.01.
+    weight_decay : float, optional
+        Weight Decay. The default is 0.0001.
+    num_epochs : float, optional
+        Number of epochs. The default is 10.
+    AvCuda : bool, optional
+        If you want to use cuda. The default is True.
 
     Returns
     -------
@@ -335,6 +362,8 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         Test Simulation accuracy.
     accuracy_list_1 : list
         Test Classification accuracy.
+    confmat_list : TYPE
+        Confusion Matrix.
 
     """
     if AvCuda:
@@ -498,23 +527,28 @@ def testing(model: GCN_Class or GCN_Reg,
         Loss function.
     test : torch.utils.data.dataloader.DataLoader
         Test dataset.
-    remain : torch.utils.data.dataloader.DataLoader
-        Other part of dataset.
     classification : bool, optional
         True: Classification else Regression. The default is True.
-    entireDataset : bool, optional
-        True: Test entire dataset. The default is True.
+    AvCuda : bool, optional
+        If you want to use cuda. The default is True.
+
+    Raises
+    ------
+    Exception
+        If there exist no pre-trained model.
 
     Returns
     -------
     model : GCN_Class or GCN_Reg
-        Model tested.
+        Model trained.
     test_loss_list : list
         Test loss.
     accuracy_list_sim : list
         Test Simulation accuracy.
     accuracy_list_1 : list
         Test Classification accuracy.
+    confmat_list : TYPE
+        Confusion Matrix.
 
     """
     if AvCuda:
@@ -576,6 +610,8 @@ def graph(model: GCN_Class or GCN_Reg,
         Train loss.
     accuracy_list : list
         Test accuracy.
+    isTrained : bool, optional
+        If the model has just been trained. The default is True.
 
     Returns
     -------
