@@ -23,6 +23,7 @@ class GCN_Class(nn.Module):
 
         self.gcl1 = GraphConvolutionnalLayer(in_features, hidden_dim)
         self.gcl2 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
+        self.gcl3 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
         self.l1 = nn.Linear(hidden_dim, hidden_dim)
         self.l2 = nn.Linear(hidden_dim, hidden_dim//2)
         self.l3 = nn.Linear(hidden_dim//2, classes)
@@ -33,6 +34,8 @@ class GCN_Class(nn.Module):
         out = self.gcl1(x, adj)
         out = out.relu()
         out = self.gcl2(out, adj)
+        out = out.relu()
+        out = self.gcl3(out, adj)
         out = out.relu()
         out = self.l1(out)
         out = torch.nn.functional.dropout(
@@ -65,6 +68,8 @@ class GCN_Reg(nn.Module):
 
         self.gcl1 = GraphConvolutionnalLayer(in_features, hidden_dim)
         self.gcl2 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
+        self.gcl3 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
+        self.gcl4 = GraphConvolutionnalLayer(hidden_dim, hidden_dim)
         self.l1 = nn.Linear(hidden_dim, hidden_dim)
         self.l2 = nn.Linear(hidden_dim, hidden_dim//2)
         self.l3 = nn.Linear(hidden_dim//2, out_features)
@@ -75,6 +80,10 @@ class GCN_Reg(nn.Module):
         out = self.gcl1(x, adj)
         out = out.relu()
         out = self.gcl2(out, adj)
+        out = out.relu()
+        out = self.gcl3(out, adj)
+        out = out.relu()
+        out = self.gcl4(out, adj)
         out = out.relu()
         out = self.l1(out)
         out = torch.nn.functional.dropout(

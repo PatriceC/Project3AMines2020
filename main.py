@@ -24,8 +24,9 @@ import utils
 # %% Data
 
 def data_processing(classification: bool = True,
+                    batch_size: int = 64,
                     equi: bool = True,
-                    perm: bool = True,
+                    perm: bool = True, r: int = 8,
                     cv: int = 0,
                     load: bool = False):
     """
@@ -51,34 +52,34 @@ def data_processing(classification: bool = True,
     if classification:
         if cv > 0:
             out_features, dataset = utils.load_data(targets_file='data/labels.pt',
-                                                cv=cv,
-                                                batch_size=64,
-                                                diversity=classification,
-                                                equi=equi,
-                                                perm=perm)
+                                                    cv=cv,
+                                                    batch_size=batch_size,
+                                                    diversity=classification,
+                                                    equi=equi,
+                                                    perm=perm)
         else:
             out_features, dataset = utils.load_data(targets_file='data/labels.pt',
-                                                batch_size=64,
-                                                diversity=classification,
-                                                equi=equi,
-                                                perm=perm,
-                                                load=load)
+                                                    batch_size=batch_size,
+                                                    diversity=classification,
+                                                    equi=equi,
+                                                    perm=perm,
+                                                    load=load)
     else:
         if cv > 0:
             out_features, dataset = utils.load_data(x_file='data/init_pops.pt',
                                                     targets_file='data/last_pops.pt',
                                                     cv=cv,
-                                                    batch_size=64,
+                                                    batch_size=batch_size,
                                                     diversity=classification,
                                                     equi=equi,
-                                                    perm=perm, r=8)
+                                                    perm=perm, r=r)
         else:
             out_features, dataset = utils.load_data(x_file='data/init_pops.pt',
                                                     targets_file='data/last_pops.pt',
-                                                    batch_size=64,
+                                                    batch_size=batch_size,
                                                     diversity=classification,
                                                     equi=equi,
-                                                    perm=perm, r=8,
+                                                    perm=perm, r=r,
                                                     load=load)
     exemple = dataset[0][1][0]
     in_features = exemple[0].shape[-1]
@@ -89,7 +90,7 @@ def data_processing(classification: bool = True,
 # %% Model
 
 def model_prep(in_features: int, out_features: int,
-               classification: bool = True):
+               classification: bool = True, AvCuda: bool = True):
     """
     Model preparation.
 
@@ -110,7 +111,11 @@ def model_prep(in_features: int, out_features: int,
         Loss function.
 
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if AvCuda:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
+
     if classification:
         model = GCN_Class(in_features, 64, out_features).to(device)
         criterion = nn.NLLLoss()
@@ -131,7 +136,8 @@ def trainning(model: GCN_Class or GCN_Reg,
               classification: bool = True,
               learning_rate: float = 0.01,
               weight_decay: float = 0.0001,
-              num_epochs: float = 5):
+              num_epochs: float = 10,
+              AvCuda: bool = True):
     """
     Train a model.
 
@@ -162,12 +168,15 @@ def trainning(model: GCN_Class or GCN_Reg,
         Test Classification accuracy.
 
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if AvCuda:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
 
     optimizer = torch.optim.AdamW(model.parameters(),
                                   lr=learning_rate,
                                   weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2, gamma=0.50)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 3, gamma=0.10)
 
     dateTimeObj_start = datetime.now()
     print('Début Entrainement :',
@@ -176,6 +185,7 @@ def trainning(model: GCN_Class or GCN_Reg,
     train_loss_list = []
     accuracy_list_sim = []
     accuracy_list_1 = []
+    confmat_list = []
     n_batches = len(train)
 
     # On va entrainer le modèle num_epochs fois
@@ -253,11 +263,12 @@ def trainning(model: GCN_Class or GCN_Reg,
                 if classification:
                     accuracy_list_sim.append(cor_sim/lcor_sim)
                     accuracy_list_1.append(cor_1/lcor_1)
+                    confmat_list.append(confmat)
                 print('-'*10)
                 if classification:
                     print("Pourcentage: {}%, Epoch: {}, Temps : {}s".format(
                         round(100*pourcentage), epoch, round(T)))
-                    print("Test Loss : {:.6f}, Accuracy Simulation: {:.3f}, Accuracy Classification: {:.3f}".format(
+                    print("Test Loss : {:.6f}, Simulation Accuracy: {:.3f}, Classification Accuracy: {:.3f}".format(
                         test_loss, cor_sim/lcor_sim, cor_1/lcor_1))
                     print('Confusion Matrix :\n', confmat,
                           '\n Labels :', np.arange(model.classes))
@@ -282,17 +293,18 @@ def trainning(model: GCN_Class or GCN_Reg,
           'min, Durée :', dateTimeObj_end-dateTimeObj_start)
     model.save()
 
-    return model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1
+    return model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1, confmat_list
 
 
 def cross_validation(model: GCN_Class or GCN_Reg,
-              criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
-              dataset: list,
-              cv: int,
-              classification: bool = True,
-              learning_rate: float = 0.01,
-              weight_decay: float = 0.0001,
-              num_epochs: float = 5):
+     criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
+     dataset: list,
+     cv: int,
+     classification: bool = True,
+     learning_rate: float = 0.01,
+     weight_decay: float = 0.0001,
+     num_epochs: float = 5,
+     AvCuda: bool = True):
     """
     Train a model with cross validation.
 
@@ -325,12 +337,16 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         Test Classification accuracy.
 
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if AvCuda:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
 
     dateTimeObj_start = datetime.now()
     print('Début Entrainement :',
           dateTimeObj_start.hour, 'H', dateTimeObj_start.minute, 'min')
     test_loss_list_fold = []
+    confmat_list_fold = []
     train_loss_list_fold = []
     accuracy_list_sim_fold = []
     accuracy_list_1_fold = []
@@ -343,16 +359,17 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         model_k.name_model = name + ' ' + str(k + 1)
         optimizer = torch.optim.AdamW(model.parameters(),
                                       lr=learning_rate,
-                                    weight_decay=weight_decay)
+                                      weight_decay=weight_decay)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, 2, gamma=0.50)
         n_batches = len(train)
         test_loss_list = []
+        confmat_list = []
         train_loss_list = []
         accuracy_list_sim = []
         accuracy_list_1 = []
         # On va entrainer le modèle num_epochs fois
         for epoch in range(1, num_epochs + 1):
-    
+
             # Temps epoch
             epoch_start_time = time.time()
             dateTimeObj = datetime.now()
@@ -366,12 +383,12 @@ def cross_validation(model: GCN_Class or GCN_Reg,
             # Loss du batch en cours
             test_loss_batch = []
             train_loss_batch = []
-    
+
             # Temps pour réaliser 10%
             start_time = time.time()
-    
+
             for batch, (x, adj_mat, target) in enumerate(train):
-    
+
                 # adj_mat = utils.adj_normalize(adj_mat.to_sparse())
                 if not classification:
                     x = utils.normalize(x)
@@ -383,11 +400,11 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                 loss = criterion(output, target.to(device))
                 # Propagating the error backward
                 loss.backward()
-    
+
                 # Optimizing the parameters
                 optimizer.step()
                 train_loss_batch.append(loss.item())
-    
+
                 # Pourcentage réel réaliser
                 count_pourcentage = batch / n_batches
                 # Si on a réalisé 10% nouveau du Dataset, on test
@@ -425,11 +442,12 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                     if classification:
                         accuracy_list_sim.append(cor_sim/lcor_sim)
                         accuracy_list_1.append(cor_1/lcor_1)
+                        confmat_list.append(confmat)
                     print('-'*10)
                     if classification:
                         print("Fold: {}, Epoch: {}, Pourcentage: {}%,  Temps : {}s".format(
                             k + 1, epoch, round(100*pourcentage), round(T)))
-                        print("Test Loss : {:.6f}, Accuracy Simulation: {:.3f}, Accuracy Classification: {:.3f}".format(
+                        print("Test Loss : {:.6f}, Simulation Accuracy: {:.3f}, Classification Accuracy: {:.3f}".format(
                             test_loss, cor_sim/lcor_sim, cor_1/lcor_1))
                         print('Confusion Matrix :\n', confmat,
                               '\n Labels :', np.arange(model.classes))
@@ -438,11 +456,11 @@ def cross_validation(model: GCN_Class or GCN_Reg,
                             k +1, epoch, round(100*pourcentage), round(T)))
                         print("Test Loss : {:.6f}".format(test_loss))
                     print('-'*10)
-    
+
                     pourcentage += 0.2
                     flag = True
                     start_time = time.time()
-    
+
             print('Fold: {}, Fin epoch : {}, Temps de l\'epoch : {}s'.format(
                 k + 1, epoch, round(time.time() - epoch_start_time)))
             train_loss_list.append(np.mean(train_loss_batch))
@@ -450,6 +468,7 @@ def cross_validation(model: GCN_Class or GCN_Reg,
         graph(model_k, test_loss_list, train_loss_list, accuracy_list_sim,
               accuracy_list_1, True)
         test_loss_list_fold.append(test_loss_list)
+        confmat_list_fold.append(confmat_list)
         train_loss_list_fold.append(train_loss_list)
         accuracy_list_sim_fold.append(accuracy_list_sim)
         accuracy_list_1_fold.append(accuracy_list_1)
@@ -460,13 +479,14 @@ def cross_validation(model: GCN_Class or GCN_Reg,
           dateTimeObj_end.hour, 'H', dateTimeObj_end.minute,
           'min, Durée :', dateTimeObj_end-dateTimeObj_start)
 
-    return model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold
+    return model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold, confmat_list_fold
 
 
 def testing(model: GCN_Class or GCN_Reg,
             criterion: torch.nn.modules.loss.NLLLoss or torch.nn.modules.loss.MSELoss,
             test: torch.utils.data.dataloader.DataLoader,
-            classification: bool = True):
+            classification: bool = True,
+            AvCuda: bool = True):
     """
     Test a model.
 
@@ -497,12 +517,17 @@ def testing(model: GCN_Class or GCN_Reg,
         Test Classification accuracy.
 
     """
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if AvCuda:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device("cpu")
+
     test_loss_list = []
     accuracy_list_sim = []
     accuracy_list_1 = []
+    confmat_list = []
     acc, cor_sim, lcor_sim, cor_1, lcor_1 = 0, 0, 0, 0, 0
-    confmat =  np.zeros((model.classes, model.classes))
+    confmat = np.zeros((model.classes, model.classes))
 
     try:
         model.load()
@@ -528,7 +553,8 @@ def testing(model: GCN_Class or GCN_Reg,
                 confmat += acc[2]
                 accuracy_list_sim.append(cor_sim/lcor_sim)
                 accuracy_list_1.append(cor_1/lcor_1)
-    return model, test_loss_list, accuracy_list_sim, accuracy_list_1, confmat
+                confmat_list.append(confmat)
+    return model, test_loss_list, accuracy_list_sim, accuracy_list_1, confmat_list
 
 
 # %% Plot
@@ -599,9 +625,9 @@ if __name__ == "__main__":
         crossval = input("Do you want k fold cross-validation ? Y/[N] ") == "Y"
         if crossval:
             try:
-                cv = int(input('k fold value: [5] '))
+                cv = int(input('k fold value: [10] '))
             except Exception:
-                cv = 5
+                cv = 10
         try:
             num_epochs = int(input('How many epochs of training ? [10] '))
         except Exception:
@@ -611,43 +637,49 @@ if __name__ == "__main__":
 
     learning_rate = 0.01
     weight_decay = 0.0001
+    batch_size = 64
+    AvCuda = True
 
     if crossval:
         dataset, in_features, out_features = data_processing(
-            classification=classification, equi=equi, perm=perm, cv=cv)
+            classification=classification, batch_size=batch_size,
+            equi=equi, perm=perm, cv=cv)
         model, criterion = model_prep(in_features=in_features,
                                       out_features=out_features,
-                                      classification=classification)
-        model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold = cross_validation(
+                                      classification=classification,
+                                      AvCuda=AvCuda)
+        model, test_loss_list_fold, train_loss_list_fold, accuracy_list_sim_fold, accuracy_list_1_fold, confmat_list_fold = cross_validation(
             model=model, criterion=criterion, dataset=dataset, cv=cv,
             classification=classification, learning_rate=learning_rate,
-            weight_decay=weight_decay, num_epochs=num_epochs)
+            weight_decay=weight_decay, num_epochs=num_epochs, AvCuda=AvCuda)
         isTrained = True
 
     else:
         dataset, in_features, out_features = data_processing(
-            classification=classification, equi=equi, perm=perm, load=load)
+            classification=classification, batch_size=batch_size,
+            equi=equi, perm=perm, load=load)
         train = dataset[0][0]
         test = dataset[0][1]
         model, criterion = model_prep(in_features=in_features,
                                       out_features=out_features,
-                                      classification=classification)
-    
+                                      classification=classification,
+                                      AvCuda=AvCuda)
+
         if load:
             try:
-                model, test_loss_list, accuracy_list_sim, accuracy_list_1, confmat = testing(
-                    model=model, criterion=criterion, test=test,
+                model, test_loss_list, accuracy_list_sim, accuracy_list_1, confmat_list = testing(
+                    model=model, criterion=criterion, test=test, AvCuda=AvCuda,
                     classification=classification)
                 print('Loss :', round(test_loss_list[0], 6),
                       'Simulation Accuracy : {:.2f}%'.format(accuracy_list_sim[0]*100),
                       'Classification Accuracy : {:.2f}%'.format(accuracy_list_1[0]*100))
-                print('Confusion Matrix :\n', confmat,
+                print('Confusion Matrix :\n', confmat_list[0],
                       '\n Labels :', np.arange(model.classes))
             except Exception as e:
                 print(e)
         else:
-            model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1 = trainning(
-                model=model, criterion=criterion, train=train,
+            model, test_loss_list, train_loss_list, accuracy_list_sim, accuracy_list_1, confmat_list = trainning(
+                model=model, criterion=criterion, train=train, AvCuda=AvCuda,
                 test=test, classification=classification,
                 learning_rate=learning_rate, weight_decay=weight_decay,
                 num_epochs=num_epochs)

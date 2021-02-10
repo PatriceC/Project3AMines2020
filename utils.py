@@ -14,7 +14,7 @@ from GCNLayer import GraphConvolutionnalLayer
 def load_data(x_file: str = None,
               adj_mats_file: str = 'data/adj_mats.pt',
               targets_file: str = 'data/labels.pt',
-              tr: float = 0.8,
+              tr: float = 0.9,
               cv: int = 0,
               batch_size: int = 128,
               diversity: bool = True,
@@ -165,7 +165,7 @@ def accuracy(output: torch.Tensor, labels: torch.Tensor, p: bool = False):
 
 
 def equilibrage(tenseur_to_eq: torch.Tensor,
-                label, list_tenseurs: list = [], perc: float = 0.61):
+                label, list_tenseurs: list = [], perc: float = 0.41):
     """
     Keep elements which have less than perc of "label" in tenseur_to_eq.
 
